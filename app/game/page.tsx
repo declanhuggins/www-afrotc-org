@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 // Marching Simulator constants
 const SCREEN_WIDTH = 800;
@@ -136,7 +136,6 @@ export default function GamePage() {
   const [elementCount, setElementCount] = useState(3);
   const [showMenu, setShowMenu] = useState(true);
   const [debug, setDebug] = useState(false);
-  const requestRef = useRef<number | undefined>(undefined);
 
   // Track previous in-bounds state for penalty logic
   const prevInBoundsRef = useRef(true);
@@ -146,71 +145,13 @@ export default function GamePage() {
   // New: Timer ref for popup
   const popupTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize positions on mount or count/element change
-  useEffect(() => {
-    const f = createFlight(inputCount, elementCount);
-    initPositions(f, elementCount);
-    setFlight(f);
-    setScore(0);
-    setBoundary(false);
-    setCommandStatus([false, false, false, false, false, false]);
-  }, [inputCount, elementCount]);
-
-  // Marching animation (STEP_SIZEpx per 500ms)
-  useEffect(() => {
-    if (!flight.isMarching) return;
-    let animId: number;
-    function step() {
-      setFlight((f) => {
-        const f2 = {
-          ...f,
-          members: f.members.map((c) => ({ ...c })),
-        };
-        for (const c of f2.members) moveForward(c, 1, f.halfSteps);
-        return f2;
-      });
-      // Always check the latest flight state for boundary
-      setBoundary((prev) => {
-        // Use the latest flight after movement
-        const latest = flight.isWithinBounds().every(Boolean);
-        return !latest;
-      });
-      animId = window.setTimeout(step, 500);
-    }
-    animId = window.setTimeout(step, 500);
-    return () => clearTimeout(animId);
-  }, [flight.isMarching, flight.halfSteps, flight]);
-
-  // Also update boundary status and handle point penalty on any flight change (not just marching)
-  useEffect(() => {
-    const allInBounds = flight.isWithinBounds().every(Boolean);
-    setBoundary(!allInBounds);
-    if (prevInBoundsRef.current && !allInBounds) {
-      // Just left bounds, subtract a point
-      setScore((s) => Math.max(0, s - 1));
-    }
-    prevInBoundsRef.current = allInBounds;
-  }, [flight]);
-
-  // Keyboard controls
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (showMenu) return;
-      const idx = COMMANDS.findIndex((cmd) => cmd.key === e.key);
-      if (idx === -1) return;
-      handleCommand(COMMANDS[idx].label as Command, idx);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [flight, showMenu, commandStatus, boundary]);
-
-  function handleCommand(cmd: Command, idx: number) {
+  // Memoize handleCommand to avoid useEffect dependency warning
+  const handleCommand = useCallback((cmd: Command, idx: number) => {
     // Show popup for 1.2s
     setPopupCommand(cmd);
     if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
     popupTimerRef.current = setTimeout(() => setPopupCommand(null), 1200);
 
-    let animId: number;
     // Always allow command execution, but only count for points if all in bounds
     const allInBounds = flight.isWithinBounds().every(Boolean);
     let valid = true;
@@ -345,10 +286,64 @@ export default function GamePage() {
         }
         break;
     }
-  }
+  }, [flight, commandStatus]);
+
+  // Initialize positions on mount or count/element change
+  useEffect(() => {
+    const f = createFlight(inputCount, elementCount);
+    initPositions(f, elementCount);
+    setFlight(f);
+    setScore(0);
+    setBoundary(false);
+    setCommandStatus([false, false, false, false, false, false]);
+  }, [inputCount, elementCount]);
+
+  // Marching animation (STEP_SIZEpx per 500ms)
+  useEffect(() => {
+    if (!flight.isMarching) return;
+    let timeoutId: number;
+    function step() {
+      setFlight((f) => {
+        const f2 = {
+          ...f,
+          members: f.members.map((c) => ({ ...c })),
+        };
+        for (const c of f2.members) moveForward(c, 1, f.halfSteps);
+        // Always check the latest flight state for boundary
+        setBoundary(!f2.isWithinBounds().every(Boolean));
+        return f2;
+      });
+      timeoutId = window.setTimeout(step, 500);
+    }
+    timeoutId = window.setTimeout(step, 500);
+    return () => clearTimeout(timeoutId);
+  }, [flight.isMarching, flight.halfSteps]);
+
+  // Also update boundary status and handle point penalty on any flight change (not just marching)
+  useEffect(() => {
+    const allInBounds = flight.isWithinBounds().every(Boolean);
+    setBoundary(!allInBounds);
+    if (prevInBoundsRef.current && !allInBounds) {
+      // Just left bounds, subtract a point
+      setScore((s) => Math.max(0, s - 1));
+    }
+    prevInBoundsRef.current = allInBounds;
+  }, [flight]);
+
+  // Keyboard controls
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (showMenu) return;
+      const idx = COMMANDS.findIndex((cmd) => cmd.key === e.key);
+      if (idx === -1) return;
+      handleCommand(COMMANDS[idx].label as Command, idx);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [flight, showMenu, commandStatus, boundary, handleCommand]);
 
   // Drawing
-  function drawFlight(ctx: CanvasRenderingContext2D) {
+  const drawFlight = useCallback((ctx: CanvasRenderingContext2D) => {
     // Draw boundary
     const minX = (SCREEN_WIDTH - MARCHING_AREA_WIDTH) / 2;
     const minY = (SCREEN_HEIGHT - MARCHING_AREA_HEIGHT) / 2;
@@ -382,7 +377,7 @@ export default function GamePage() {
       }
       ctx.restore();
     }
-  }
+  }, [flight]);
 
   // Canvas ref
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -393,7 +388,7 @@ export default function GamePage() {
     if (!ctx) return;
     ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     drawFlight(ctx);
-  }, [flight, boundary, showMenu]);
+  }, [flight, boundary, showMenu, drawFlight]);
 
   // Debug menu
   const debugMenu = debug && (
@@ -514,8 +509,8 @@ export default function GamePage() {
         </button>
       </div>
       <div style={{ fontSize: 14, color: "#666" }}>
-        Use keys 1-6 to issue commands. Marching continues until "FLIGHT HALT".<br />
-        "HALF STEPS" slows the march. "LEFT/RIGHT/ABOUT FACE" rotate the flight.<br />
+        Use keys 1-6 to issue commands. Marching continues until &quot;FLIGHT HALT&quot;.<br />
+        &quot;HALF STEPS&quot; slows the march. &quot;LEFT/RIGHT/ABOUT FACE&quot; rotate the flight.<br />
         If any cadet leaves the boundary, the boundary indicator turns red.
       </div>
     </main>
