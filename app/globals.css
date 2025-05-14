@@ -35,7 +35,7 @@ body {
   @apply text-background;
 }
 .btn-fill {
-  @apply relative overflow-hidden inline-block cursor-pointer rounded border border-gray-300 transition duration-300 min-w-[5.25rem] px-4 py-2 text-foreground bg-background;
+  @apply relative overflow-hidden inline-flex items-center align-baseline cursor-pointer rounded border border-gray-300 transition duration-300 min-w-[5.25rem] px-4 py-2 text-foreground bg-background;
   text-decoration: none;
   z-index: 0;
 }

@@ -1,3 +1,4 @@
+import React from 'react';
 import Link from 'next/link';
 
 export default function Home() {
@@ -8,8 +9,12 @@ export default function Home() {
           href="https://www.afrotc.com"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-500 underline"
+          className="btn-fill"
+          style={{
+            borderColor: 'var(--blue-800)'
+          } as React.CSSProperties}
         >
+          <span className="mr-2">→</span>
           afrotc.com
         </Link>
       </h1>

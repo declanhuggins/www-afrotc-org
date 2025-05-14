@@ -5,6 +5,9 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
+	"vars": {
+		"NODE_VERSION": "23.11.0"
+	},
 	"pages_build_output_dir": ".vercel/output/static",
 	"observability": {
 		"enabled": true
