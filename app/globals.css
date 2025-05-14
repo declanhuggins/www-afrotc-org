@@ -20,7 +20,22 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  @apply bg-background text-foreground font-sans;
+}
+
+.btn-fill:hover:not([disabled])::before {
+  @apply translate-x-[-25%] skew-x-[35deg];
+}
+.btn-fill::before {
+  content: "";
+  @apply absolute inset-y-0 left-0 w-3/2 h-full bg-foreground origin-top-left transform -translate-x-[130%] skew-x-[45deg] transition-transform duration-300;
+  z-index: -1;
+}
+.btn-fill:hover:not([disabled]) {
+  @apply text-background;
+}
+.btn-fill {
+  @apply relative overflow-hidden inline-block cursor-pointer rounded border border-gray-300 transition duration-300 min-w-[5.25rem] px-4 py-2 text-foreground bg-background;
+  text-decoration: none;
+  z-index: 0;
 }
