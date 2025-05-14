@@ -32,7 +32,7 @@
 		"wrangler": "^4.14.4"
 	},
 	"overrides": {
-		"cookie": "1.0.2",
+		"cookie": "0.7.0",
 		"esbuild": "0.25.4",
 		"path-to-regexp": "8.2.0",
 		"undici": "7.9.0"
