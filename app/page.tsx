@@ -10,9 +10,6 @@ export default function Home() {
           target="_blank"
           rel="noopener noreferrer"
           className="btn-fill"
-          style={{
-            borderColor: 'var(--blue-800)'
-          } as React.CSSProperties}
         >
           <span className="mr-2">→</span>
           afrotc.com
@@ -21,6 +18,12 @@ export default function Home() {
       <p className="mt-4 text-center text-xl">
         Hello det 225 :)
       </p>
+      <Link
+        href="/marching"
+        className="mt-8 inline-block px-6 py-3 rounded-lg bg-blue-600 text-white font-semibold text-lg shadow hover:bg-blue-700 transition"
+      >
+        Try out my Marching Simulator here →
+      </Link>
     </div>
   );
 }
