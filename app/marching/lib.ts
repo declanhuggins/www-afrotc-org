@@ -65,28 +65,8 @@ export function moveForward(cadet: Cadet, steps: number, stepLengthInInches: num
   cadet.y -= Math.cos(rad) * stepPx * steps;
 }
 
-// Move a cadet forward with a delay (returns a Promise that resolves after the move)
-export function moveForwardWithDelay(cadet: Cadet, steps: number, stepLengthInInches: number, delayMs: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      moveForward(cadet, steps, stepLengthInInches);
-      resolve();
-    }, delayMs);
-  });
-}
-
 export function rotate(cadet: Cadet, deg: number) {
   cadet.dir += deg;
-}
-
-// Rotate a cadet with a delay (returns a Promise that resolves after the rotation)
-export function rotateWithDelay(cadet: Cadet, deg: number, delayMs: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      rotate(cadet, deg);
-      resolve();
-    }, delayMs);
-  });
 }
 
 export function createFlight(
@@ -194,7 +174,7 @@ export function marchToElement(cadet: Cadet, targetElement: number, flight: Flig
   }
   // Compute distance in inches
   const pxPerInch = getInchesToPixels()(1);
-  let distInPx = targetAxis - cadetAxis;
+  const distInPx = targetAxis - cadetAxis;
   // Direction: positive if moving toward increasing axis, negative otherwise
   // For 0 (up), negative y is forward; for 180 (down), positive y is forward
   // For 90 (right), positive x is forward; for 270 (left), negative x is forward

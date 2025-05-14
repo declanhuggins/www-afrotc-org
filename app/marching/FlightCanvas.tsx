@@ -190,7 +190,7 @@ export const FlightCanvas: React.FC<FlightCanvasProps> = ({ cadets, width, heigh
       ctx.restore();
       ctx.restore();
     }
-  }, [cadets, width, height, areaWidth, areaHeight, boundary, previewCadets, inchesToPixels]);
+  }, [AIRMAN_LENGTH, AIRMAN_WIDTH, GUIDON_TRIANGLE_SIZE, cadets, width, height, areaWidth, areaHeight, boundary, previewCadets, inchesToPixels]);
 
   return (
     <canvas

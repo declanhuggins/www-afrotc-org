@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import clsx from "clsx";
-import { createFlight, initPositions, moveForward, rotate, rotateWithDelay, marchToElement, Flight, Command, Direction, degToRad, CADENCES, setInchesToPixels, getInchesToPixels } from "./lib";
+import { createFlight, initPositions, moveForward, rotate, marchToElement, Flight, Command, Direction, degToRad, CADENCES, setInchesToPixels, getInchesToPixels } from "./lib";
 import { FlightCanvas } from "./FlightCanvas";
 import { DebugMenu } from "./DebugMenu";
 import { Menu } from "./Menu";
@@ -34,12 +34,12 @@ export default function MarchingPage() {
   // Marching area is always a square
   const MARCHING_AREA_SIZE = Math.min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.7;
   // Conversion: inches to pixels for current area size
-  const inchesToPixels = (inches: number) => (MARCHING_AREA_SIZE / (areaFeet * 12)) * inches;
+  const inchesToPixels = useCallback((inches: number) => (MARCHING_AREA_SIZE / (areaFeet * 12)) * inches, [MARCHING_AREA_SIZE, areaFeet]);
 
   // Set global inchesToPixels on mount and whenever areaFeet changes (reset)
   useEffect(() => {
     setInchesToPixels(inchesToPixels);
-  }, [areaFeet, MARCHING_AREA_SIZE]);
+  }, [areaFeet, MARCHING_AREA_SIZE, inchesToPixels]);
 
   const [flight, setFlight] = useState<Flight>(() => createFlight(DEFAULT_INPUT_COUNT, 3, {
     width: SCREEN_WIDTH,
@@ -58,7 +58,6 @@ export default function MarchingPage() {
   const [fallInMode, setFallInMode] = useState(false);
   const [fallInPreview, setFallInPreview] = useState<{x: number, y: number} | null>(null);
   const [fallInDir, setFallInDir] = useState<Direction>(0);
-  const [lastMousePos, setLastMousePos] = useState<{x: number, y: number} | null>(null);
   // Ref to track last step time
   const lastStepTimeRef = useRef<number | null>(null);
   // Track command history
@@ -84,7 +83,6 @@ export default function MarchingPage() {
       });
       setScore((s) => s + 1);
     }
-    const delay = 60000 / flight.cadence.bpm;
     switch (cmd) {
       case "FORWARD MARCH":
         if (!flight.isMarching) {
@@ -200,14 +198,13 @@ export default function MarchingPage() {
         if (fallInMode) {
           setFallInMode(false);
           setFallInPreview(null);
-          setLastMousePos(null);
           setPopupCommand("AS YOU WERE");
           if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
           popupTimerRef.current = setTimeout(() => setPopupCommand(null), 1200);
         }
         break;
     }
-  }, [flight, commandStatus, fallInMode, distance]);
+  }, [flight, commandStatus, fallInMode]);
 
   // FALL-IN logic
   const handleFallIn = useCallback((center: {x: number, y: number}, dir: Direction) => {
@@ -223,8 +220,7 @@ export default function MarchingPage() {
     setCommandStatus([false, false, false, false, false, false, false, false]);
     setFallInMode(false);
     setFallInPreview(null);
-    setLastMousePos(null);
-  }, [inputCount, elementCount, interval, distance]);
+  }, [inputCount, elementCount, interval, distance, MARCHING_AREA_SIZE]);
 
   // Initialize positions on mount or count/element change
   useEffect(() => {
@@ -247,7 +243,7 @@ export default function MarchingPage() {
     setScore(0);
     setBoundary(false);
     setCommandStatus([false, false, false, false, false, false, false, false, false]);
-  }, [inputCount, elementCount, interval, distance]);
+  }, [inputCount, elementCount, interval, distance, MARCHING_AREA_SIZE]);
 
   // Marching animation
   useEffect(() => {
@@ -364,7 +360,6 @@ export default function MarchingPage() {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     setFallInPreview({ x, y });
-    setLastMousePos({ x, y });
   }
 
   if (showMenu) {
