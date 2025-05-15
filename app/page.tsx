@@ -9,9 +9,8 @@ export default function Home() {
           href="https://www.afrotc.com"
           target="_blank"
           rel="noopener noreferrer"
-          className="btn-fill"
+          className="text-blue-400"
         >
-          <span className="mr-2">→</span>
           afrotc.com
         </Link>
       </h1>
@@ -20,7 +19,7 @@ export default function Home() {
       </p>
       <Link
         href="/marching"
-        className="mt-8 inline-block px-6 py-3 rounded-lg bg-blue-600 text-white font-semibold text-lg shadow hover:bg-blue-700 transition"
+        className="btn-fill mt-4 font-semibold text-lg"
       >
         Try out my Marching Simulator here →
       </Link>

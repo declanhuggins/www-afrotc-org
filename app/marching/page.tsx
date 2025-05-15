@@ -10,6 +10,8 @@ const SCREEN_WIDTH = 800;
 const SCREEN_HEIGHT = 800;
 const DEFAULT_AREA_FEET = 25; // feet
 const DEFAULT_INPUT_COUNT = 13;
+
+// The UI commands (shown to user)
 const COMMANDS = [
   { key: "w", label: "FORWARD MARCH" },
   { key: "a", label: "LEFT FACE" },
@@ -21,6 +23,32 @@ const COMMANDS = [
   { key: "r", label: "ROTATE FALL-IN" },
   { key: "Esc", label: "AS YOU WERE" },
 ];
+
+// The atomic commands handled by handleCommand
+const ATOMIC_COMMANDS = [
+  "FORWARD", "HALF STEPS", "LEFT", "RIGHT", "ABOUT", "FLIGHT", "FACE", "MARCH", "HALT", "FALL-IN", "AS YOU WERE", "ROTATE FALL-IN"
+] as const;
+type AtomicCommand = typeof ATOMIC_COMMANDS[number];
+
+// Map UI command label to preparatory/exec sequence
+const UI_TO_ATOMIC: Record<string, AtomicCommand[]> = {
+  "FORWARD MARCH": ["FORWARD", "MARCH"],
+  "LEFT FACE": ["LEFT", "FACE"],
+  "RIGHT FACE": ["RIGHT", "FACE"],
+  "ABOUT FACE": ["ABOUT", "FACE"],
+  "FLIGHT HALT": ["FLIGHT", "HALT"],
+  "HALF STEPS": ["HALF STEPS", "MARCH"],
+  "FALL-IN": ["FLIGHT", "FALL-IN"],
+  "AS YOU WERE": ["AS YOU WERE"],
+  "ROTATE FALL-IN": ["ROTATE FALL-IN"],
+};
+
+// Set of valid preparatory-execution pairs for green highlighting
+const VALID_PREP_EXEC_PAIRS = new Set(
+  Object.values(UI_TO_ATOMIC)
+    .filter(arr => arr.length === 2)
+    .map(([prep, exec]) => `${prep}|${exec}`)
+);
 
 export default function MarchingPage() {
   const [interval, setInterval] = useState(DEFAULT_INTERVAL);
@@ -64,153 +92,364 @@ export default function MarchingPage() {
   const [fallInMode, setFallInMode] = useState(false);
   const [fallInPreview, setFallInPreview] = useState<{x: number, y: number} | null>(null);
   const [fallInDir, setFallInDir] = useState<Direction>(0);
+  const [preparatoryCommand, setPreparatoryCommand] = useState<AtomicCommand | null>(null);
   // Ref to track last step time
   const lastStepTimeRef = useRef<number | null>(null);
-  // Track command history
-  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  // Track command history as objects for notepad columns
+  const [commandHistory, setCommandHistory] = useState<
+    { prep?: AtomicCommand; exec?: AtomicCommand; status: 'pending' | 'error' | 'success' | 'asYouWere' }[]
+  >([]);
+  // Track if a command is in progress and allow interruption
+  const commandInProgressRef = useRef<AbortController | null>(null);
+  // Track current command, preparatory, and execution command
+  const [currentCommand, setCurrentCommand] = useState<AtomicCommand | null>(null);
+  const [currentPreparatoryCommand, setCurrentPreparatoryCommand] = useState<AtomicCommand | null>(null);
+  const [currentExecutionCommand, setCurrentExecutionCommand] = useState<AtomicCommand | null>(null);
+  // Ref to persist preparatory command between async handleCommand calls
+  const currentPreparatoryCommandRef = useRef<AtomicCommand | null>(null);
 
-  // Memoized handleCommand
-  const handleCommand = useCallback((cmd: Command, idx: number) => {
-    setCommandHistory((hist) => [...hist, cmd]);
+  // Draggable debug menu state and logic
+  const [debugMenuPos, setDebugMenuPos] = useState<{ x: number; y: number }>({ x: 100, y: 100 });
+  const debugMenuRef = useRef<HTMLDivElement | null>(null);
+  const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const dragging = useRef(false);
+
+  function onDebugMenuMouseDown(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
+    dragging.current = true;
+    dragOffset.current = {
+      x: e.clientX - debugMenuPos.x,
+      y: e.clientY - debugMenuPos.y,
+    };
+    document.body.style.userSelect = "none";
+  }
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!dragging.current) return;
+      setDebugMenuPos({
+        x: e.clientX - dragOffset.current.x,
+        y: e.clientY - dragOffset.current.y,
+      });
+    }
+    function onMouseUp() {
+      dragging.current = false;
+      document.body.style.userSelect = "";
+    }
+    if (debug) {
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+      return () => {
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+      };
+    }
+  }, [debug]);
+
+  const showPopupForBeats = (cmd: string, beats = 2) => {
     setPopupCommand(cmd);
     if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
-    popupTimerRef.current = setTimeout(() => setPopupCommand(null), 1200);
-    const allInBounds = flight.isWithinBounds().every(Boolean);
-    let valid = true;
-    if ((flight.isMarching && ["LEFT FACE", "RIGHT FACE", "ABOUT FACE"].includes(cmd)) ||
-        (!flight.isMarching && ["HALF STEPS", "FLIGHT HALT"].includes(cmd))) {
-      valid = false;
-    }
-    if (valid && allInBounds && !commandStatus[idx]) {
-      setCommandStatus((s) => {
-        const arr = [...s];
-        arr[idx] = true;
-        return arr;
+    const stepInterval = 60000 / flight.cadence.bpm;
+    popupTimerRef.current = setTimeout(() => setPopupCommand(null), beats * stepInterval);
+  };
+
+  function pushExec(cmd: AtomicCommand) {
+    if (cmd === "ROTATE FALL-IN") return; // Ignore for notepad
+    setCommandHistory((hist) => {
+      // Find last pending prep
+      for (let i = hist.length - 1; i >= 0; i--) {
+        if (hist[i].status === 'pending' && hist[i].prep && !hist[i].exec) {
+          const isValid = VALID_PREP_EXEC_PAIRS.has(`${hist[i].prep}|${cmd}`);
+          if (isValid) {
+            setCurrentPreparatoryCommand(null);
+            setCurrentExecutionCommand(null);
+            currentPreparatoryCommandRef.current = null;
+            return [
+              ...hist.slice(0, i),
+              { ...hist[i], exec: cmd, status: 'success' },
+              ...hist.slice(i + 1),
+            ];
+          } else {
+            // Invalid pair: leave pending prep row, add a new row with only exec in red
+            setCurrentExecutionCommand(null);
+            return [
+              ...hist,
+              { prep: undefined, exec: cmd, status: 'error' },
+            ];
+          }
+        }
+      }
+      // No pending prep: add a new row, both prep and exec in red
+      setCurrentExecutionCommand(null);
+      return [
+        ...hist,
+        { prep: undefined, exec: cmd, status: 'error' },
+      ];
+    });
+  }
+
+  function pushPrep(cmd: AtomicCommand) {
+    if (cmd === "ROTATE FALL-IN") return; // Ignore for notepad
+    setCommandHistory((hist) => {
+      // If the last row is a pending prep, and AS YOU WERE was just called, mark it as error (red)
+      if (hist.length > 0 && hist[hist.length - 1].status === 'pending' && !hist[hist.length - 1].exec) {
+        // If the previous row is 'asYouWere', mark the pending prep as error
+        if (hist.length > 1 && hist[hist.length - 2].status === 'asYouWere') {
+          return [
+            ...hist.slice(0, -1),
+            { ...hist[hist.length - 1], status: 'error' },
+            { prep: cmd, status: 'pending' },
+          ];
+        }
+        return [
+          ...hist.slice(0, -1),
+          { ...hist[hist.length - 1], status: 'error' },
+          { prep: cmd, status: 'pending' },
+        ];
+      }
+      return [...hist, { prep: cmd, status: 'pending' }];
+    });
+  }
+
+  const handleCommand = useCallback(async (cmd: AtomicCommand) => {
+    setCurrentCommand(cmd);
+    // AS YOU WERE: always interrupt and log
+    if (cmd === "AS YOU WERE") {
+      setCurrentPreparatoryCommand(null);
+      setCurrentExecutionCommand(null);
+      currentPreparatoryCommandRef.current = null;
+      if (commandInProgressRef.current) {
+        commandInProgressRef.current.abort();
+        commandInProgressRef.current = null;
+      }
+      setCommandHistory((hist) => {
+        // If last row is a pending prep, mark it as error before adding asYouWere
+        if (hist.length > 0 && hist[hist.length - 1].status === 'pending' && hist[hist.length - 1].prep && !hist[hist.length - 1].exec) {
+          return [
+            ...hist.slice(0, -1),
+            { ...hist[hist.length - 1], status: 'error' },
+            { status: 'asYouWere' }
+          ];
+        }
+        return [...hist, { status: 'asYouWere' }];
       });
-      setScore((s) => s + 1);
+      showPopupForBeats(cmd);
+      if (fallInMode) {
+        setFallInMode(false);
+        setFallInPreview(null);
+      }
+      return;
+    }
+    // Setup abort controller for interruptible commands
+    let abortController: AbortController | null = null;
+    function shouldAbort() {
+      return abortController && abortController.signal.aborted;
+    }
+    const isExecution = ["MARCH", "FACE", "HALT", "FALL-IN", "ROTATE FALL-IN"].includes(cmd);
+    if (isExecution) {
+      // Only process if there is a valid preparatory-execution pair
+      const prep = currentPreparatoryCommandRef.current;
+      const isValid = prep && VALID_PREP_EXEC_PAIRS.has(`${prep}|${cmd}`);
+      if (!prep) {
+        pushExec(cmd); // Will add a red row
+        setCurrentExecutionCommand(null);
+        return;
+      }
+      if (!isValid) {
+        pushExec(cmd); // Will add a red row and keep prep
+        setCurrentExecutionCommand(null);
+        return;
+      }
     }
     switch (cmd) {
-      case "FORWARD MARCH":
-        if (!flight.isMarching) {
-          setFlight((f) => ({ ...f, isMarching: true, cadence: CADENCES["Quick Time"] }));
-        }
-        break;
-      case "FLIGHT HALT":
-        if (flight.isMarching) {
-          setFlight((f) => ({ ...f, isMarching: false }));
-          // Calculate timing for extra steps
-          const cadence = flight.cadence;
-          const stepInterval = 60000 / cadence.bpm;
-          const now = Date.now();
-          const lastStep = lastStepTimeRef.current ?? now;
-          const sinceLastStep = now - lastStep;
-          const firstDelay = Math.max(0, stepInterval - sinceLastStep);
-          const secondDelay = firstDelay + stepInterval;
-          const doExtraStep = () => {
-            setFlight((f) => {
-              const f2 = { ...f, members: f.members.map((c) => ({ ...c })) };
-              for (const c of f2.members) moveForward(c, 1, cadence.stepLength);
-              return f2;
-            });
-          };
-          setTimeout(doExtraStep, firstDelay);
-          setTimeout(doExtraStep, secondDelay);
-        }
-        break;
+      case "FORWARD":
       case "HALF STEPS":
-        if (flight.isMarching && flight.cadence !== CADENCES["Half Step"]) {
-          // Calculate timing for cadence change to take effect after the next step
-          const cadence = flight.cadence;
-          const stepInterval = 60000 / cadence.bpm;
-          const now = Date.now();
-          const lastStep = lastStepTimeRef.current ?? now;
-          const sinceLastStep = now - lastStep;
-          const delayToNextStep = Math.max(0, stepInterval - sinceLastStep);
-          setTimeout(() => {
-            setFlight((f) => ({ ...f, cadence: CADENCES["Half Step"] }));
-          }, delayToNextStep);
-        }
+      case "LEFT":
+      case "RIGHT":
+      case "ABOUT":
+      case "FLIGHT":
+        setCurrentPreparatoryCommand(cmd);
+        currentPreparatoryCommandRef.current = cmd;
+        setPreparatoryCommand(cmd);
+        showPopupForBeats(cmd);
+        pushPrep(cmd);
         break;
-      case "RIGHT FACE":
-        if (!flight.isMarching) {
-          setFlight((f) => {
-            const f2 = { ...f, members: f.members.map((c) => ({ ...c })) };
-            const guidon = f2.members[0];
-            for (const c of f2.members) rotate(c, 90);
-            if (f2.formation === "LINE") {
-              rotate(guidon, 90);
-              // March guidon from element 1 to last element
-              marchToElement(guidon, f2.elementCount - 1, f2);
-              rotate(guidon, -90);
-              f2.formation = "COLUMN";
-            } else if (f2.formation === "COLUMN") {
-              f2.formation = "INVERSE_LINE";
-            } else if (f2.formation === "INVERSE_LINE") {
-              f2.formation = "INVERSE_COLUMN";
-            } else if (f2.formation === "INVERSE_COLUMN") {
-              marchToElement(guidon, 0, f2);
-              f2.formation = "LINE";
+      case "MARCH":
+        setCurrentExecutionCommand("MARCH");
+        showPopupForBeats("MARCH");
+        pushExec("MARCH");
+        // Add a one-beat pause before starting to march
+        let cadence = flight.cadence;
+        const stepInterval = 60000 / cadence.bpm;
+        switch (currentPreparatoryCommandRef.current) {
+          case "FORWARD": 
+            cadence = CADENCES["Quick Time"]; 
+            break;
+          case "HALF STEPS": 
+            cadence = CADENCES["Half Step"]; 
+            break;
+        }
+        setTimeout(() => {
+          setFlight((f) => ({ ...f, cadence, isMarching: true }));
+        }, stepInterval);
+        break;
+      case "FACE": {
+        setCurrentExecutionCommand("FACE");
+        showPopupForBeats("FACE");
+        pushExec("FACE");
+        abortController = new AbortController();
+        commandInProgressRef.current = abortController;
+        const f2 = { ...flight, members: flight.members.map((c) => ({ ...c })) };
+        const guidon = f2.members[0];
+        const guidonTurnDelay = 60000 / flight.cadence.bpm;
+        console.log('Current preparatory command:', currentPreparatoryCommandRef.current);
+        if (currentPreparatoryCommandRef.current === "RIGHT") for (const c of f2.members) rotate(c, 90);
+        if (currentPreparatoryCommandRef.current === "LEFT") for (const c of f2.members) rotate(c, -90);
+        if (currentPreparatoryCommandRef.current === "ABOUT") for (const c of f2.members) rotate(c, 180);
+        setFlight({ ...f2, members: f2.members.map(c => ({ ...c })) });
+        const prepCmd = currentPreparatoryCommandRef.current;
+        await new Promise(res => setTimeout(res, guidonTurnDelay));
+        if (shouldAbort()) {
+          commandInProgressRef.current = null;
+          return;
+        }
+        const doMarch = async (prep: AtomicCommand | null) => {
+          try {
+            console.log('[doMarch] Entered doMarch. Prep:', prep, 'Formation:', f2.formation);
+            if (prep === "RIGHT") {
+              console.log('[doMarch] Handling RIGHT FACE, formation:', f2.formation);
+              if (f2.formation === "LINE") {
+                console.log('[doMarch] RIGHT FACE from LINE');
+                rotate(guidon, 90);
+                setFlight({ ...f2, members: f2.members.map(c => ({ ...c })) });
+                await new Promise(res => setTimeout(res, guidonTurnDelay));
+                if (shouldAbort()) throw new Error("aborted");
+                console.log('[doMarch] Calling marchToElement for RIGHT FACE from LINE');
+                await marchToElement(guidon, f2.elementCount - 1, f2, () => {
+                  setFlight({ ...f2, members: f2.members.map(c => ({ ...c })) });
+                  if (shouldAbort()) throw new Error("aborted");
+                });
+                rotate(guidon, -90);
+                setFlight({ ...f2, members: f2.members.map(c => ({ ...c })) });
+                await new Promise(res => setTimeout(res, guidonTurnDelay));
+                if (shouldAbort()) throw new Error("aborted");
+                f2.formation = "COLUMN";
+              } else if (f2.formation === "COLUMN") {
+                console.log('[doMarch] RIGHT FACE from COLUMN');
+                f2.formation = "INVERSE_LINE";
+              } else if (f2.formation === "INVERSE_LINE") {
+                console.log('[doMarch] RIGHT FACE from INVERSE_LINE');
+                f2.formation = "INVERSE_COLUMN";
+              } else if (f2.formation === "INVERSE_COLUMN") {
+                console.log('[doMarch] RIGHT FACE from INVERSE_COLUMN');
+                await marchToElement(guidon, 0, f2, () => {
+                  setFlight({ ...f2, members: f2.members.map(c => ({ ...c })) });
+                  if (shouldAbort()) throw new Error("aborted");
+                });
+                f2.formation = "LINE";
+              }
+            } else if (prep === "LEFT") {
+              console.log('[doMarch] Handling LEFT FACE, formation:', f2.formation);
+              if (f2.formation === "LINE") {
+                console.log('[doMarch] LEFT FACE from LINE');
+                rotate(guidon, -90);
+                setFlight({ ...f2, members: f2.members.map(c => ({ ...c })) });
+                await new Promise(res => setTimeout(res, guidonTurnDelay));
+                if (shouldAbort()) throw new Error("aborted");
+                console.log('[doMarch] Calling marchToElement for LEFT FACE from LINE');
+                await marchToElement(guidon, f2.elementCount - 1, f2, () => {
+                  setFlight({ ...f2, members: f2.members.map(c => ({ ...c })) });
+                  if (shouldAbort()) throw new Error("aborted");
+                });
+                rotate(guidon, 90);
+                setFlight({ ...f2, members: f2.members.map(c => ({ ...c })) });
+                await new Promise(res => setTimeout(res, guidonTurnDelay));
+                if (shouldAbort()) throw new Error("aborted");
+                f2.formation = "INVERSE_COLUMN";
+              } else if (f2.formation === "INVERSE_COLUMN") {
+                console.log('[doMarch] LEFT FACE from INVERSE_COLUMN');
+                f2.formation = "INVERSE_LINE";
+              } else if (f2.formation === "INVERSE_LINE") {
+                console.log('[doMarch] LEFT FACE from INVERSE_LINE');
+                f2.formation = "COLUMN";
+              } else if (f2.formation === "COLUMN") {
+                console.log('[doMarch] LEFT FACE from COLUMN');
+                await marchToElement(guidon, 0, f2, () => {
+                  setFlight({ ...f2, members: f2.members.map(c => ({ ...c })) });
+                  if (shouldAbort()) throw new Error("aborted");
+                });
+                f2.formation = "LINE";
+              }
+            } else if (prep === "ABOUT") {
+              console.log('[doMarch] Handling ABOUT FACE, formation:', f2.formation);
+              if (f2.formation === "LINE") {
+                console.log('[doMarch] ABOUT FACE from LINE');
+                setFlight({ ...f2, members: f2.members.map(c => ({ ...c })) });
+                await new Promise(res => setTimeout(res, guidonTurnDelay));
+                if (shouldAbort()) throw new Error("aborted");
+                console.log('[doMarch] Calling marchToElement for ABOUT FACE from LINE');
+                await marchToElement(guidon, f2.elementCount - 1, f2, () => {
+                  setFlight({ ...f2, members: f2.members.map(c => ({ ...c })) });
+                  if (shouldAbort()) throw new Error("aborted");
+                });
+                f2.formation = "INVERSE_LINE";
+              } else if (f2.formation === "INVERSE_LINE") {
+                console.log('[doMarch] ABOUT FACE from INVERSE_LINE');
+                setFlight({ ...f2, members: f2.members.map(c => ({ ...c })) });
+                await new Promise(res => setTimeout(res, guidonTurnDelay));
+                if (shouldAbort()) throw new Error("aborted");
+                console.log('[doMarch] Calling marchToElement for ABOUT FACE from INVERSE_LINE');
+                await marchToElement(guidon, 0, f2, () => {
+                  setFlight({ ...f2, members: f2.members.map(c => ({ ...c })) });
+                  if (shouldAbort()) throw new Error("aborted");
+                });
+                f2.formation = "LINE";
+              } else if (f2.formation === "COLUMN") {
+                console.log('[doMarch] ABOUT FACE from COLUMN');
+                f2.formation = "INVERSE_COLUMN";
+              } else if (f2.formation === "INVERSE_COLUMN") {
+                console.log('[doMarch] ABOUT FACE from INVERSE_COLUMN');
+                f2.formation = "COLUMN";
+              }
             }
-            return f2;
-          });
-        }
+            setFlight({ ...f2, members: f2.members.map(c => ({ ...c })) });
+          } catch (e) {
+            console.log('[doMarch] Exception:', e);
+            // If aborted, do not update formation
+          } finally {
+            console.log('[doMarch] Finally block, setting commandInProgressRef to null');
+            commandInProgressRef.current = null;
+          }
+        };
+        console.log('[FACE] About to call doMarch with prepCmd:', prepCmd);
+        doMarch(prepCmd);
         break;
-      case "LEFT FACE":
-        if (!flight.isMarching) {
-          setFlight((f) => {
-            const f2 = { ...f, members: f.members.map((c) => ({ ...c })) };
-            const guidon = f2.members[0];
-            for (const c of f2.members) rotate(c, -90);
-            if (f2.formation === "LINE") {
-              rotate(guidon, -90);
-              // March guidon from element 0 to last element (rightmost to leftmost)
-              marchToElement(guidon, f2.elementCount - 1, f2);
-              rotate(guidon, 90);
-              f2.formation = "INVERSE_COLUMN";
-            } else if (f2.formation === "INVERSE_COLUMN") {
-              f2.formation = "INVERSE_LINE";
-            } else if (f2.formation === "INVERSE_LINE") {
-              f2.formation = "COLUMN";
-            } else if (f2.formation === "COLUMN") {
-              marchToElement(guidon, 0, f2);
-              f2.formation = "LINE";
-            }
-            return f2;
-          });
-        }
+      }
+      case "HALT":
+        setCurrentExecutionCommand("HALT");
+        showPopupForBeats("HALT");
+        pushExec("HALT");
+        // Continue marching for 2 more beats before stopping
+        const haltDelay = 2 * (60000 / flight.cadence.bpm);
+        setTimeout(() => {
+          setFlight((f) => ({ ...f, isMarching: false }));
+        }, haltDelay);
         break;
-      case "ABOUT FACE":
-        if (!flight.isMarching) {
-          setFlight((f) => {
-            const f2 = { ...f, members: f.members.map((c) => ({ ...c })) };
-            const guidon = f2.members[0];
-            for (const c of f2.members) rotate(c, 180);
-            if (f2.formation === "LINE") {
-              marchToElement(guidon, f2.elementCount - 1, f2);
-              f2.formation = "INVERSE_LINE";
-            } else if (f2.formation === "INVERSE_LINE") {
-              marchToElement(guidon, 0, f2);
-              f2.formation = "LINE";
-            } else if (f2.formation === "COLUMN") {
-              f2.formation = "INVERSE_COLUMN";
-            } else if (f2.formation === "INVERSE_COLUMN") {
-              f2.formation = "COLUMN";
-            }
-            return f2;
-          });
-        }
+      case "FALL-IN":
+        setCurrentExecutionCommand("FALL-IN");
+        showPopupForBeats("FALL-IN");
+        pushExec("FALL-IN");
+        setFallInMode(true);
+        setFallInPreview(null);
+        setFallInDir(0);
         break;
-      case "AS YOU WERE":
-        if (fallInMode) {
-          setFallInMode(false);
-          setFallInPreview(null);
-          setPopupCommand("AS YOU WERE");
-          if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
-          popupTimerRef.current = setTimeout(() => setPopupCommand(null), 1200);
-        }
+      case "ROTATE FALL-IN":
+        setCurrentExecutionCommand("ROTATE FALL-IN");
+        showPopupForBeats("ROTATE FALL-IN");
+        pushExec("ROTATE FALL-IN");
+        setFallInDir((d) => ((d + 90) % 360) as Direction);
         break;
     }
-  }, [flight, commandStatus, fallInMode]);
+  }, [flight, preparatoryCommand, currentPreparatoryCommand]);
 
   // FALL-IN logic
   const handleFallIn = useCallback((center: {x: number, y: number}, dir: Direction) => {
@@ -305,46 +544,32 @@ export default function MarchingPage() {
           // Always cancel fall-in state
           setFallInMode(false);
           setFallInPreview(null);
-          setPopupCommand("AS YOU WERE");
-          if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
-          popupTimerRef.current = setTimeout(() => setPopupCommand(null), 1200);
+          showPopupForBeats("AS YOU WERE");
           return;
         }
       }
       const idx = COMMANDS.findIndex((cmd) => cmd.key === e.key);
       if (idx === -1) return;
-      if (COMMANDS[idx].label === "FALL-IN") {
-        if (!fallInMode) {
-          setPopupCommand("FLIGHT");
-          if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
-          popupTimerRef.current = setTimeout(() => setPopupCommand(null), 1200);
-          setFallInMode(true);
-          setFallInPreview(null);
-          setFallInDir(0);
-          return;
-        }
-        // If in fall-in mode, allow FALL IN even if no preview (default to center)
-        setPopupCommand("FALL IN");
-        if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
-        popupTimerRef.current = setTimeout(() => setPopupCommand(null), 1200);
-        const center = fallInPreview || { x: SCREEN_WIDTH / 2, y: SCREEN_HEIGHT / 2 };
-        handleFallIn(center, fallInDir);
-        return;
+      const uiCommand = COMMANDS[idx].label;
+      const atomicSequence = UI_TO_ATOMIC[uiCommand];
+      if (!atomicSequence) return;
+      if (atomicSequence.length === 1) {
+        handleCommand(atomicSequence[0]);
+      } else {
+        const [prep, exec] = atomicSequence;
+        showPopupForBeats(prep);
+        handleCommand(prep);
+        const cadence = flight.cadence;
+        const stepInterval = 60000 / cadence.bpm;
+        setTimeout(() => {
+          showPopupForBeats(exec);
+          handleCommand(exec);
+        }, 2 * stepInterval);
       }
-      if (COMMANDS[idx].label === "AS YOU WERE") {
-        // Always cancel fall-in state
-        setFallInMode(false);
-        setFallInPreview(null);
-        setPopupCommand("AS YOU WERE");
-        if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
-        popupTimerRef.current = setTimeout(() => setPopupCommand(null), 1200);
-        return;
-      }
-      handleCommand(COMMANDS[idx].label as Command, idx);
     }
     window.addEventListener("keydown", onKeyDown, { passive: false });
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [flight, showMenu, commandStatus, boundary, handleCommand, fallInMode, fallInPreview, fallInDir, handleFallIn]);
+  }, [flight, showMenu, fallInMode, handleCommand]);
 
   // Mouse click for FALL-IN
   function handleCanvasClick(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
@@ -353,9 +578,7 @@ export default function MarchingPage() {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     setFallInPreview({ x, y });
-    setPopupCommand("FALL IN");
-    if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
-    popupTimerRef.current = setTimeout(() => setPopupCommand(null), 1200);
+    showPopupForBeats("FALL IN");
     handleFallIn({ x, y }, fallInDir);
   }
 
@@ -367,6 +590,11 @@ export default function MarchingPage() {
     const y = e.clientY - rect.top;
     setFallInPreview({ x, y });
   }
+
+  // Helper for DebugMenu to send atomic commands
+  const handleSendAtomicCommand = (cmd: string) => {
+    handleCommand(cmd as AtomicCommand);
+  };
 
   if (showMenu) {
     return (
@@ -423,38 +651,21 @@ export default function MarchingPage() {
                     aria-pressed={commandStatus[i]}
                     tabIndex={0}
                     onClick={() => {
-                      if (cmd.label === "FALL-IN") {
-                        if (!fallInMode) {
-                          setPopupCommand("FLIGHT");
-                          if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
-                          popupTimerRef.current = setTimeout(() => setPopupCommand(null), 1200);
-                          setFallInMode(true);
-                          setFallInPreview(null);
-                          setFallInDir(0);
-                          return;
-                        }
-                        // If in fall-in mode, allow FALL IN even if no preview (default to center)
-                        setPopupCommand("FALL IN");
-                        if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
-                        popupTimerRef.current = setTimeout(() => setPopupCommand(null), 1200);
-                        const center = fallInPreview || { x: SCREEN_WIDTH / 2, y: SCREEN_HEIGHT / 2 };
-                        handleFallIn(center, fallInDir);
-                        return;
+                      const atomicSequence = UI_TO_ATOMIC[cmd.label];
+                      if (!atomicSequence) return;
+                      if (atomicSequence.length === 1) {
+                        handleCommand(atomicSequence[0]);
+                      } else {
+                        const [prep, exec] = atomicSequence;
+                        showPopupForBeats(prep);
+                        handleCommand(prep);
+                        const cadence = flight.cadence;
+                        const stepInterval = 60000 / cadence.bpm;
+                        setTimeout(() => {
+                          showPopupForBeats(exec);
+                          handleCommand(exec);
+                        }, 2 * stepInterval);
                       }
-                      if (cmd.label === "ROTATE FALL-IN") {
-                        setFallInDir((d) => ((d + 90) % 360) as Direction);
-                        return;
-                      }
-                      if (cmd.label === "AS YOU WERE") {
-                        // Always cancel fall-in state
-                        setFallInMode(false);
-                        setFallInPreview(null);
-                        setPopupCommand("AS YOU WERE");
-                        if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
-                        popupTimerRef.current = setTimeout(() => setPopupCommand(null), 1200);
-                        return;
-                      }
-                      handleCommand(cmd.label as Command, i);
                     }}
                   >
                     <span className="font-mono font-bold text-base w-8 text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900">{cmd.key}</span>
@@ -558,15 +769,55 @@ export default function MarchingPage() {
           {/* Notepad for command history */}
           <div className="bg-yellow-50 dark:bg-yellow-900/40 border border-yellow-300 dark:border-yellow-700 rounded-xl shadow p-4 min-h-[300px] max-h-[500px] overflow-y-auto w-full">
             <h2 className="text-lg font-bold text-yellow-800 dark:text-yellow-200 mb-2">Command Notepad</h2>
-            <ul className="flex flex-col gap-1">
-              {commandHistory.map((cmd, i) => (
-                <li key={i} className="text-sm text-yellow-900 dark:text-yellow-100 font-mono whitespace-pre">
-                  {cmd}
-                </li>
-              ))}
-            </ul>
+            <table className="w-full text-sm font-mono">
+              <thead>
+                <tr>
+                  <th className="text-left px-2">Preparatory</th>
+                  <th className="text-left px-2">Execution</th>
+                </tr>
+              </thead>
+              <tbody>
+                {commandHistory.filter(row => row.prep !== "ROTATE FALL-IN" && row.exec !== "ROTATE FALL-IN").map((row, i) =>
+                  row.status === 'asYouWere' ? (
+                    <tr key={i}>
+                      <td colSpan={2} className="px-2 py-1 text-blue-900 dark:text-blue-200 font-bold">AS YOU WERE</td>
+                    </tr>
+                  ) : (
+                    <tr key={i}>
+                      <td className={
+                        'px-2 py-1 ' +
+                        (row.status === 'success' ? 'text-green-700 dark:text-green-300 font-bold' :
+                          row.status === 'error' && row.prep ? 'text-red-600 dark:text-red-400 font-bold' :
+                          '')
+                      }>
+                        {row.prep ?? ''}
+                      </td>
+                      <td className={
+                        'px-2 py-1 ' +
+                        (row.status === 'success' ? 'text-green-700 dark:text-green-300 font-bold' :
+                          row.status === 'error' && row.exec ? 'text-red-600 dark:text-red-400 font-bold' :
+                          '')
+                      }>
+                        {row.exec ?? ''}
+                      </td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
           </div>
-          {debug && <DebugMenu flight={flight} />}
+          {debug && (
+            <DebugMenu
+              flight={flight}
+              debugMenuPos={debugMenuPos}
+              onDebugMenuMouseDown={onDebugMenuMouseDown}
+              currentCommand={currentCommand}
+              currentPreparatoryCommand={currentPreparatoryCommand}
+              currentExecutionCommand={currentExecutionCommand}
+              ATOMIC_COMMANDS={ATOMIC_COMMANDS as unknown as string[]}
+              onSendAtomicCommand={handleSendAtomicCommand}
+            />
+          )}
         </aside>
       </div>
     </main>

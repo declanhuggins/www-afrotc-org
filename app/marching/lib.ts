@@ -158,34 +158,56 @@ export function initPositions(
 }
 
 // March guidon (or any cadet) from their current element to a target element, taking full steps and a final partial step to align exactly in-line with the target element's axis.
-export function marchToElement(cadet: Cadet, targetElement: number, flight: Flight) {
+export async function marchToElement(
+  cadet: Cadet,
+  targetElement: number,
+  flight: Flight,
+  onStep?: () => void
+) {
   // Find any cadet in the target element (not the guidon)
   const targetCadet = flight.members.find(c => c.element === targetElement && !c.isGuidon);
-  if (!targetCadet) return;
+  if (!targetCadet) {
+    console.log('[marchToElement] No target cadet found for element', targetElement);
+    return;
+  }
   // Determine axis: if facing up/down (0/180), align y; if facing left/right (90/270), align x
   let targetAxis, cadetAxis;
+  let axisType = '';
   if (cadet.dir < 45 || (cadet.dir > 135 && cadet.dir < 225) || cadet.dir > 315) {
     // Align y
     targetAxis = targetCadet.y;
     cadetAxis = cadet.y;
+    axisType = 'y';
   } else {
     // Align x
     targetAxis = targetCadet.x;
     cadetAxis = cadet.x;
+    axisType = 'x';
   }
+  console.log('[marchToElement] Cadet dir:', cadet.dir, 'Axis:', axisType, 'From:', cadetAxis, 'To:', targetAxis);
   // Compute distance in inches
   const pxPerInch = getPixelsToInches()(1);
   const distInPx = targetAxis - cadetAxis;
   let distInInches = Math.abs(distInPx) * pxPerInch;
   const step =  flight.cadence.stepLength;
+  const delay = 60000 / flight.cadence.bpm;
+  let stepCount = 0;
   while (distInInches > step) {
+    console.log(`[marchToElement] Step ${++stepCount}: moving ${step} inches`);
     moveForward(cadet, 1, step);
+    if (onStep) onStep();
+    await new Promise(res => setTimeout(res, delay));
     distInInches -= step;
+    console.log(`[marchToElement] Remaining distance: ${distInInches} inches`);
   }
   if (distInInches > 0.01) {
+    console.log(`[marchToElement] Final step: moving ${distInInches} inches`);
     moveForward(cadet, 1, distInInches);
+    if (onStep) onStep();
+    await new Promise(res => setTimeout(res, delay));
   }
   cadet.element = targetElement;
+  console.log('[marchToElement] Finished. Cadet now at element', cadet.element, 'Position:', cadet.x, cadet.y);
 }
 
 // --- Conversion utilities ---
