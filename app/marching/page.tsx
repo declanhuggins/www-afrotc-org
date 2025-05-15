@@ -425,8 +425,8 @@ export default function MarchingPage() {
         setCurrentExecutionCommand("HALT");
         showPopupForBeats("HALT");
         pushExec("HALT");
-        // Continue marching for 2 more beats before stopping
-        const haltDelay = 2 * (60000 / flight.cadence.bpm);
+        // Continue marching for 1 more beats before stopping
+        const haltDelay = (60000 / flight.cadence.bpm);
         setTimeout(() => {
           setFlight((f) => ({ ...f, isMarching: false }));
         }, haltDelay);
