@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import clsx from "clsx";
-import { createFlight, initPositions, moveForward, rotate, marchToElement, Flight, Command, Direction, degToRad, CADENCES, DEFAULT_INTERVAL, DEFAULT_DISTANCE, setInchesToPixels, setPixelsToInches } from "./lib";
+import { createFlight, initPositions, rotate, marchToElement, Flight, Direction, degToRad, CADENCES, DEFAULT_INTERVAL, DEFAULT_DISTANCE, setInchesToPixels, setPixelsToInches } from "./lib";
 import { FlightCanvas } from "./FlightCanvas";
 import { DebugMenu } from "./DebugMenu";
 import { Menu } from "./Menu";
@@ -92,7 +92,6 @@ export default function MarchingPage() {
   const [fallInMode, setFallInMode] = useState(false);
   const [fallInPreview, setFallInPreview] = useState<{x: number, y: number} | null>(null);
   const [fallInDir, setFallInDir] = useState<Direction>(0);
-  const [preparatoryCommand, setPreparatoryCommand] = useState<AtomicCommand | null>(null);
   // Ref to track last step time
   const lastStepTimeRef = useRef<number | null>(null);
   // Track command history as objects for notepad columns
@@ -110,7 +109,6 @@ export default function MarchingPage() {
 
   // Draggable debug menu state and logic
   const [debugMenuPos, setDebugMenuPos] = useState<{ x: number; y: number }>({ x: 100, y: 100 });
-  const debugMenuRef = useRef<HTMLDivElement | null>(null);
   const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const dragging = useRef(false);
 
@@ -145,12 +143,12 @@ export default function MarchingPage() {
     }
   }, [debug]);
 
-  const showPopupForBeats = (cmd: string, beats = 2) => {
+  const showPopupForBeats = useCallback((cmd: string, beats = 2) => {
     setPopupCommand(cmd);
     if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
     const stepInterval = 60000 / flight.cadence.bpm;
     popupTimerRef.current = setTimeout(() => setPopupCommand(null), beats * stepInterval);
-  };
+  }, [flight.cadence.bpm]);
 
   function pushExec(cmd: AtomicCommand) {
     if (cmd === "ROTATE FALL-IN") return; // Ignore for notepad
@@ -269,7 +267,6 @@ export default function MarchingPage() {
       case "FLIGHT":
         setCurrentPreparatoryCommand(cmd);
         currentPreparatoryCommandRef.current = cmd;
-        setPreparatoryCommand(cmd);
         showPopupForBeats(cmd);
         pushPrep(cmd);
         break;
@@ -449,7 +446,7 @@ export default function MarchingPage() {
         setFallInDir((d) => ((d + 90) % 360) as Direction);
         break;
     }
-  }, [flight, preparatoryCommand, currentPreparatoryCommand]);
+  }, [flight, fallInMode, showPopupForBeats]);
 
   // FALL-IN logic
   const handleFallIn = useCallback((center: {x: number, y: number}, dir: Direction) => {
@@ -569,7 +566,7 @@ export default function MarchingPage() {
     }
     window.addEventListener("keydown", onKeyDown, { passive: false });
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [flight, showMenu, fallInMode, handleCommand]);
+  }, [flight, showMenu, fallInMode, showPopupForBeats, handleCommand]);
 
   // Mouse click for FALL-IN
   function handleCanvasClick(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
