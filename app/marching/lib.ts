@@ -9,6 +9,9 @@ export interface Cadet {
   element: number; // 0-based element (column)
 }
 
+export const DEFAULT_INTERVAL = 35; // inches
+export const DEFAULT_DISTANCE = 30; // inches;
+
 export type Formation = "LINE" | "COLUMN" | "INVERSE_LINE" | "INVERSE_COLUMN";
 
 export type Direction = 0 | 90 | 180 | 270; // 0=up, 90=right, 180=down, 270=left
@@ -27,13 +30,12 @@ export interface Cadence {
   name: string;
   bpm: number;
   stepLength: number; // in inches
-  inPlace?: boolean;
 }
 
 export const CADENCES: Record<string, Cadence> = {
   "Quick Time": { name: "Quick Time", bpm: 120, stepLength: 24 },
   "Double Time": { name: "Double Time", bpm: 180, stepLength: 30 },
-  "Mark Time": { name: "Mark Time", bpm: 120, stepLength: 0, inPlace: true },
+  "Mark Time": { name: "Mark Time", bpm: 120, stepLength: 0 },
   "Half Step": { name: "Half Step", bpm: 120, stepLength: 12 },
 };
 
@@ -66,7 +68,7 @@ export function moveForward(cadet: Cadet, steps: number, stepLengthInInches: num
 }
 
 export function rotate(cadet: Cadet, deg: number) {
-  cadet.dir += deg;
+  cadet.dir = ((cadet.dir + deg) % 360 + 360) % 360;
 }
 
 export function createFlight(
@@ -75,8 +77,8 @@ export function createFlight(
   screen: { width: number; height: number; areaWidth: number; areaHeight: number },
   center?: { x: number, y: number },
   direction: Direction = 0,
-  interval: number = 35, // default 35 inches
-  distance: number = 30  // default 30 inches
+  interval: number = DEFAULT_INTERVAL,
+  distance: number = DEFAULT_DISTANCE
 ): Flight {
   count = clamp(count, 1, 22);
   const members: Cadet[] = [];
@@ -114,8 +116,8 @@ export function initPositions(
   screen: { width: number; height: number; areaWidth: number; areaHeight: number },
   center?: { x: number, y: number },
   direction: Direction = 0,
-  interval: number = 35,
-  distance: number = 30
+  interval: number = DEFAULT_INTERVAL,
+  distance: number = DEFAULT_DISTANCE
 ) {
   const count = f.members.length;
   const ranks = Math.ceil((count - 1) / elements) + 1;
@@ -161,9 +163,8 @@ export function marchToElement(cadet: Cadet, targetElement: number, flight: Flig
   const targetCadet = flight.members.find(c => c.element === targetElement && !c.isGuidon);
   if (!targetCadet) return;
   // Determine axis: if facing up/down (0/180), align y; if facing left/right (90/270), align x
-  const dirNorm = ((cadet.dir % 360) + 360) % 360;
   let targetAxis, cadetAxis;
-  if (dirNorm === 0 || dirNorm === 180) {
+  if (cadet.dir < 45 || (cadet.dir > 135 && cadet.dir < 225) || cadet.dir > 315) {
     // Align y
     targetAxis = targetCadet.y;
     cadetAxis = cadet.y;
@@ -173,37 +174,34 @@ export function marchToElement(cadet: Cadet, targetElement: number, flight: Flig
     cadetAxis = cadet.x;
   }
   // Compute distance in inches
-  const pxPerInch = getInchesToPixels()(1);
+  const pxPerInch = getPixelsToInches()(1);
   const distInPx = targetAxis - cadetAxis;
-  // Direction: positive if moving toward increasing axis, negative otherwise
-  // For 0 (up), negative y is forward; for 180 (down), positive y is forward
-  // For 90 (right), positive x is forward; for 270 (left), negative x is forward
-  let sign = 1;
-  if ((dirNorm === 0 && distInPx < 0) || (dirNorm === 180 && distInPx > 0) ||
-      (dirNorm === 270 && distInPx < 0) || (dirNorm === 90 && distInPx > 0)) {
-    sign = 1;
-  } else {
-    sign = -1;
-  }
-  let distInInches = Math.abs(distInPx) / pxPerInch;
-  const step = flight.distance;
+  let distInInches = Math.abs(distInPx) * pxPerInch;
+  const step =  flight.cadence.stepLength;
   while (distInInches > step) {
-    moveForward(cadet, 1, step * sign);
+    moveForward(cadet, 1, step);
     distInInches -= step;
   }
   if (distInInches > 0.01) {
-    moveForward(cadet, 1, distInInches * sign);
+    moveForward(cadet, 1, distInInches);
   }
   cadet.element = targetElement;
 }
 
-// Global inchesToPixels function, default to identity
+// --- Conversion utilities ---
+// These are set by the UI (page.tsx) and used by all lib.ts functions
 let _inchesToPixels: (inches: number) => number = (inches) => inches;
+let _pixelsToInches: (pixels: number) => number = (pixels) => pixels;
 
 export function setInchesToPixels(fn: (inches: number) => number) {
   _inchesToPixels = fn;
 }
-
 export function getInchesToPixels() {
   return _inchesToPixels;
+}
+export function setPixelsToInches(fn: (pixels: number) => number) {
+  _pixelsToInches = fn;
+}
+export function getPixelsToInches() {
+  return _pixelsToInches;
 }

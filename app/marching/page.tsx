@@ -1,15 +1,13 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import clsx from "clsx";
-import { createFlight, initPositions, moveForward, rotate, marchToElement, Flight, Command, Direction, degToRad, CADENCES, setInchesToPixels, getInchesToPixels } from "./lib";
+import { createFlight, initPositions, moveForward, rotate, marchToElement, Flight, Command, Direction, degToRad, CADENCES, DEFAULT_INTERVAL, DEFAULT_DISTANCE, setInchesToPixels, setPixelsToInches } from "./lib";
 import { FlightCanvas } from "./FlightCanvas";
 import { DebugMenu } from "./DebugMenu";
 import { Menu } from "./Menu";
 
 const SCREEN_WIDTH = 800;
 const SCREEN_HEIGHT = 800;
-const DEFAULT_INTERVAL = 35; // inches
-const DEFAULT_DISTANCE = 30; // inches;
 const DEFAULT_AREA_FEET = 25; // feet
 const DEFAULT_INPUT_COUNT = 13;
 const COMMANDS = [
@@ -33,13 +31,21 @@ export default function MarchingPage() {
   const [showTips, setShowTips] = useState(false);
   // Marching area is always a square
   const MARCHING_AREA_SIZE = Math.min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.7;
-  // Conversion: inches to pixels for current area size
-  const inchesToPixels = useCallback((inches: number) => (MARCHING_AREA_SIZE / (areaFeet * 12)) * inches, [MARCHING_AREA_SIZE, areaFeet]);
+  // Conversion: inches to pixels and pixels to inches for current area size
+  const inchesToPixels = useCallback(
+    (inches: number) => (MARCHING_AREA_SIZE / (areaFeet * 12)) * inches,
+    [MARCHING_AREA_SIZE, areaFeet]
+  );
+  const pixelsToInches = useCallback(
+    (pixels: number) => (areaFeet * 12 / MARCHING_AREA_SIZE) * pixels,
+    [MARCHING_AREA_SIZE, areaFeet]
+  );
 
-  // Set global inchesToPixels on mount and whenever areaFeet changes (reset)
+  // Keep lib.ts in sync with the current conversion functions
   useEffect(() => {
     setInchesToPixels(inchesToPixels);
-  }, [areaFeet, MARCHING_AREA_SIZE, inchesToPixels]);
+    setPixelsToInches(pixelsToInches);
+  }, [inchesToPixels, pixelsToInches]);
 
   const [flight, setFlight] = useState<Flight>(() => createFlight(DEFAULT_INPUT_COUNT, 3, {
     width: SCREEN_WIDTH,
@@ -251,16 +257,16 @@ export default function MarchingPage() {
     let timeoutId: number;
     function step() {
       setFlight((f) => {
-        // Use cadence for step length and inPlace
+        // Use cadence for step length
         const cadence = f.cadence;
-        if (cadence.inPlace) return { ...f }; // Mark Time: no movement
+        if (cadence.name == "Mark Time") return { ...f }; // Mark Time: no movement
         const newMembers = f.members.map((c) => {
           const step = cadence.stepLength;
           const rad = degToRad(c.dir);
           return {
             ...c,
-            x: c.x + getInchesToPixels()(Math.sin(rad) * step),
-            y: c.y - getInchesToPixels()(Math.cos(rad) * step),
+            x: c.x + inchesToPixels(Math.sin(rad) * step),
+            y: c.y - inchesToPixels(Math.cos(rad) * step),
           };
         });
         // Record the time of this step
@@ -271,7 +277,7 @@ export default function MarchingPage() {
     }
     timeoutId = window.setTimeout(step, 60000 / flight.cadence.bpm);
     return () => clearTimeout(timeoutId);
-  }, [flight.isMarching, flight.cadence]);
+  }, [flight.isMarching, flight.cadence, inchesToPixels]);
 
   // Boundary/score penalty
   useEffect(() => {
