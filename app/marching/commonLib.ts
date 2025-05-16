@@ -176,17 +176,14 @@ export async function marchToElement(
   }
   // Determine axis: if facing up/down (0/180), align y; if facing left/right (90/270), align x
   let targetAxis, cadetAxis;
-  let axisType = '';
   if (cadet.dir < 45 || (cadet.dir > 135 && cadet.dir < 225) || cadet.dir > 315) {
     // Align y
     targetAxis = targetCadet.y;
     cadetAxis = cadet.y;
-    axisType = 'y';
   } else {
     // Align x
     targetAxis = targetCadet.x;
     cadetAxis = cadet.x;
-    axisType = 'x';
   }
   // Compute distance in inches
   const pxPerInch = getPixelsToInches()(1);
@@ -194,7 +191,6 @@ export async function marchToElement(
   let distInInches = Math.abs(distInPx) * pxPerInch;
   const step =  flight.cadence.stepLength;
   const delay = 60000 / flight.cadence.bpm;
-  let stepCount = 0;
   while (distInInches > step) {
     moveForward(cadet, 1, step);
     if (onStep) onStep();
