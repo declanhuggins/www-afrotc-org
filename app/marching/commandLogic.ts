@@ -220,7 +220,11 @@ export async function handleCommandLogic({
       if (currentPreparatoryCommandRef.current === "ABOUT") for (const c of f2.members) rotate(c, 180);
       setFlight({ ...f2, members: f2.members.map((c: Cadet) => ({ ...c })) });
       const prepCmd = currentPreparatoryCommandRef.current;
-      await new Promise(res => setTimeout(res, guidonTurnDelay));
+      // --- Helper functions for doMarch ---
+      const awaitDelay = (ms: number) => new Promise(res => setTimeout(res, ms));
+      const updateFlightMembers = () => setFlight({ ...f2, members: f2.members.map((c) => ({ ...c })) });
+      const abortIfNeeded = () => { if (shouldAbort()) throw new Error("aborted"); };
+      await awaitDelay(guidonTurnDelay);
       if (shouldAbort()) {
         commandInProgressRef.current = null;
         return;
@@ -230,17 +234,17 @@ export async function handleCommandLogic({
           if (prep === "RIGHT") {
             if (f2.formation === "LINE") {
               rotate(guidon, 90);
-              setFlight({ ...f2, members: f2.members.map((c) => ({ ...c })) });
-              await new Promise(res => setTimeout(res, guidonTurnDelay));
-              if (shouldAbort()) throw new Error("aborted");
+              updateFlightMembers();
+              await awaitDelay(guidonTurnDelay);
+              abortIfNeeded();
               await marchToElement(guidon, f2.elementCount - 1, f2, () => {
-                setFlight({ ...f2, members: f2.members.map((c) => ({ ...c })) });
-                if (shouldAbort()) throw new Error("aborted");
+                updateFlightMembers();
+                abortIfNeeded();
               });
               rotate(guidon, -90);
-              setFlight({ ...f2, members: f2.members.map((c) => ({ ...c })) });
-              await new Promise(res => setTimeout(res, guidonTurnDelay));
-              if (shouldAbort()) throw new Error("aborted");
+              updateFlightMembers();
+              await awaitDelay(guidonTurnDelay);
+              abortIfNeeded();
               f2.formation = "COLUMN";
             } else if (f2.formation === "COLUMN") {
               f2.formation = "INVERSE_LINE";
@@ -248,25 +252,25 @@ export async function handleCommandLogic({
               f2.formation = "INVERSE_COLUMN";
             } else if (f2.formation === "INVERSE_COLUMN") {
               await marchToElement(guidon, 0, f2, () => {
-                setFlight({ ...f2, members: f2.members.map((c) => ({ ...c })) });
-                if (shouldAbort()) throw new Error("aborted");
+                updateFlightMembers();
+                abortIfNeeded();
               });
               f2.formation = "LINE";
             }
           } else if (prep === "LEFT") {
             if (f2.formation === "LINE") {
               rotate(guidon, -90);
-              setFlight({ ...f2, members: f2.members.map((c) => ({ ...c })) });
-              await new Promise(res => setTimeout(res, guidonTurnDelay));
-              if (shouldAbort()) throw new Error("aborted");
+              updateFlightMembers();
+              await awaitDelay(guidonTurnDelay);
+              abortIfNeeded();
               await marchToElement(guidon, f2.elementCount - 1, f2, () => {
-                setFlight({ ...f2, members: f2.members.map((c) => ({ ...c })) });
-                if (shouldAbort()) throw new Error("aborted");
+                updateFlightMembers();
+                abortIfNeeded();
               });
               rotate(guidon, 90);
-              setFlight({ ...f2, members: f2.members.map((c) => ({ ...c })) });
-              await new Promise(res => setTimeout(res, guidonTurnDelay));
-              if (shouldAbort()) throw new Error("aborted");
+              updateFlightMembers();
+              await awaitDelay(guidonTurnDelay);
+              abortIfNeeded();
               f2.formation = "INVERSE_COLUMN";
             } else if (f2.formation === "INVERSE_COLUMN") {
               f2.formation = "INVERSE_LINE";
@@ -274,28 +278,28 @@ export async function handleCommandLogic({
               f2.formation = "COLUMN";
             } else if (f2.formation === "COLUMN") {
               await marchToElement(guidon, 0, f2, () => {
-                setFlight({ ...f2, members: f2.members.map((c) => ({ ...c })) });
-                if (shouldAbort()) throw new Error("aborted");
+                updateFlightMembers();
+                abortIfNeeded();
               });
               f2.formation = "LINE";
             }
           } else if (prep === "ABOUT") {
             if (f2.formation === "LINE") {
-              setFlight({ ...f2, members: f2.members.map((c) => ({ ...c })) });
-              await new Promise(res => setTimeout(res, guidonTurnDelay));
-              if (shouldAbort()) throw new Error("aborted");
+              updateFlightMembers();
+              await awaitDelay(guidonTurnDelay);
+              abortIfNeeded();
               await marchToElement(guidon, f2.elementCount - 1, f2, () => {
-                setFlight({ ...f2, members: f2.members.map((c) => ({ ...c })) });
-                if (shouldAbort()) throw new Error("aborted");
+                updateFlightMembers();
+                abortIfNeeded();
               });
               f2.formation = "INVERSE_LINE";
             } else if (f2.formation === "INVERSE_LINE") {
-              setFlight({ ...f2, members: f2.members.map((c) => ({ ...c })) });
-              await new Promise(res => setTimeout(res, guidonTurnDelay));
-              if (shouldAbort()) throw new Error("aborted");
+              updateFlightMembers();
+              await awaitDelay(guidonTurnDelay);
+              abortIfNeeded();
               await marchToElement(guidon, 0, f2, () => {
-                setFlight({ ...f2, members: f2.members.map((c) => ({ ...c })) });
-                if (shouldAbort()) throw new Error("aborted");
+                updateFlightMembers();
+                abortIfNeeded();
               });
               f2.formation = "LINE";
             } else if (f2.formation === "COLUMN") {
@@ -304,7 +308,7 @@ export async function handleCommandLogic({
               f2.formation = "COLUMN";
             }
           }
-          setFlight({ ...f2, members: f2.members.map((c) => ({ ...c })) });
+          updateFlightMembers();
         } catch (e) {
           console.error("Command aborted:", e);
         } finally {
