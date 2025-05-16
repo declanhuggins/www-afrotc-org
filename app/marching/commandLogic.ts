@@ -10,7 +10,7 @@ export interface AtomicCommandDef {
 }
 
 export const ATOMIC_COMMANDS = [
-  "FORWARD", "HALF STEPS", "LEFT", "RIGHT", "ABOUT", "FLIGHT", "FACE", "MARCH", "HALT", "FALL-IN", "AS YOU WERE", "ROTATE FALL-IN"
+  "FORWARD", "HALF STEPS", "LEFT", "RIGHT", "ABOUT", "COLUMN LEFT", "COLUMN RIGHT", "FLIGHT", "FACE", "MARCH", "HALT", "FALL-IN", "AS YOU WERE", "ROTATE FALL-IN"
 ] as const;
 export type AtomicCommand = typeof ATOMIC_COMMANDS[number];
 
@@ -20,6 +20,8 @@ export const ATOMIC_COMMAND_DEFS: Record<AtomicCommand, AtomicCommandDef> = {
   "LEFT": { command: "LEFT", type: "preparatory" },
   "RIGHT": { command: "RIGHT", type: "preparatory" },
   "ABOUT": { command: "ABOUT", type: "preparatory" },
+  "COLUMN LEFT": { command: "COLUMN LEFT", type: "preparatory" },
+  "COLUMN RIGHT": { command: "COLUMN RIGHT", type: "preparatory" },
   "FLIGHT": { command: "FLIGHT", type: "preparatory" },
   "FACE": { command: "FACE", type: "execution" },
   "MARCH": { command: "MARCH", type: "execution" },
@@ -34,6 +36,8 @@ export const UI_TO_ATOMIC: Record<string, AtomicCommand[]> = {
   "LEFT FACE": ["LEFT", "FACE"],
   "RIGHT FACE": ["RIGHT", "FACE"],
   "ABOUT FACE": ["ABOUT", "FACE"],
+  "COLUMN LEFT": ["COLUMN LEFT", "MARCH"],
+  "COLUMN RIGHT": ["COLUMN RIGHT", "MARCH"],
   "FLIGHT HALT": ["FLIGHT", "HALT"],
   "HALF STEPS": ["HALF STEPS", "MARCH"],
   "FALL-IN": ["FLIGHT", "FALL-IN"],
@@ -52,6 +56,8 @@ export const SCORABLE_COMMANDS: Array<[AtomicCommand, AtomicCommand]> = [
   ["LEFT", "FACE"],
   ["RIGHT", "FACE"],
   ["ABOUT", "FACE"],
+  ["COLUMN LEFT", "MARCH"],
+  ["COLUMN RIGHT", "MARCH"],
   ["FLIGHT", "HALT"],
   ["HALF STEPS", "MARCH"],
 ];
@@ -61,6 +67,8 @@ export const COMMANDS = [
   { key: "a", label: "LEFT FACE" },
   { key: "d", label: "RIGHT FACE" },
   { key: "s", label: "ABOUT FACE" },
+  { key: "q", label: "COLUMN LEFT" },
+  { key: "e", label: "COLUMN RIGHT" },
   { key: " ", label: "FLIGHT HALT" }, // spacebar
   { key: "h", label: "HALF STEPS" },
   { key: "f", label: "FALL-IN" },
@@ -74,6 +82,8 @@ export const KEY_TO_COMMAND_LABEL: Record<string, string> = {
   "a": "LEFT FACE",
   "d": "RIGHT FACE",
   "s": "ABOUT FACE",
+  "q": "COLUMN LEFT",
+  "e": "COLUMN RIGHT",
   " ": "FLIGHT HALT",
   "h": "HALF STEPS",
   "f": "FALL-IN",
@@ -180,6 +190,8 @@ export async function handleCommandLogic({
     case "LEFT":
     case "RIGHT":
     case "ABOUT":
+    case "COLUMN LEFT":
+    case "COLUMN RIGHT":
     case "FLIGHT":
       setCurrentPreparatoryCommand(cmd);
       currentPreparatoryCommandRef.current = cmd;
@@ -190,20 +202,38 @@ export async function handleCommandLogic({
       setCurrentExecutionCommand("MARCH");
       showPopupForBeats("MARCH");
       pushExec("MARCH");
-      // Add a one-beat pause before starting to march
-      let cadence = flight.cadence;
-      const stepInterval = 60000 / cadence.bpm;
       switch (currentPreparatoryCommandRef.current) {
-        case "FORWARD":
-          cadence = CADENCES["Quick Time"];
+        case "FORWARD": {
+          // Standard forward march
+          let cadence = CADENCES["Quick Time"];
+          const stepInterval = 60000 / cadence.bpm;
+          setTimeout(() => {
+            setFlight((f: Flight) => ({ ...f, cadence, isMarching: true }));
+          }, stepInterval);
           break;
-        case "HALF STEPS":
-          cadence = CADENCES["Half Step"];
+        }
+        case "HALF STEPS": {
+          // Half step march
+          let cadence = CADENCES["Half Step"];
+          const stepInterval = 60000 / cadence.bpm;
+          setTimeout(() => {
+            setFlight((f: Flight) => ({ ...f, cadence, isMarching: true }));
+          }, stepInterval);
           break;
+        }
+        case "COLUMN RIGHT": {
+          // COLUMN RIGHT MARCH logic removed. TODO: Implement fresh logic per AFMAN 36-2203.
+          break;
+        }
+        case "COLUMN LEFT": {
+          // TODO: Implement COLUMN LEFT MARCH logic here
+          break;
+        }
+        default: {
+          // For any other preparatory command, do nothing
+          break;
+        }
       }
-      setTimeout(() => {
-        setFlight((f: Flight) => ({ ...f, cadence, isMarching: true }));
-      }, stepInterval);
       break;
     }
     case "FACE": {
