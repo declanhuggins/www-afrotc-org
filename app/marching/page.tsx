@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect } from "react";
 import clsx from "clsx";
 import { DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT } from "./commonLib";
 import { createFlightLogic } from "./flightLogic";
@@ -8,6 +8,7 @@ import { setPixelsToInches } from "./commonLib";
 import { FlightCanvas } from "./FlightCanvas";
 import { DebugMenu } from "./DebugMenu";
 import { Menu } from "./Menu";
+import { useDraggablePosition } from "./commonLib";
 
 export default function MarchingPage() {
   const {
@@ -50,51 +51,12 @@ export default function MarchingPage() {
   } = useMarchingState();
 
   // Conversion: inches to pixels and pixels to inches for current area size
-  const pixelsToInches = useCallback(
-    (pixels: number) => (areaFeet * 12 / MARCHING_AREA_SIZE) * pixels,
-    [MARCHING_AREA_SIZE, areaFeet]
-  );
-
-  // Keep lib.ts in sync with the current conversion functions
   useEffect(() => {
-    setPixelsToInches(pixelsToInches);
-  }, [pixelsToInches]);
+    setPixelsToInches((pixels) => (areaFeet * 12 / MARCHING_AREA_SIZE) * pixels);
+  }, [areaFeet, MARCHING_AREA_SIZE]);
 
   // Draggable debug menu state and logic
-  const [debugMenuPosState, setDebugMenuPosState] = React.useState<{ x: number; y: number }>({ x: 100, y: 100 });
-  const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const dragging = useRef(false);
-
-  function handleDebugMenuMouseDown(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
-    dragging.current = true;
-    dragOffset.current = {
-      x: e.clientX - debugMenuPosState.x,
-      y: e.clientY - debugMenuPosState.y,
-    };
-    document.body.style.userSelect = "none";
-  }
-
-  useEffect(() => {
-    function onMouseMove(e: MouseEvent) {
-      if (!dragging.current) return;
-      setDebugMenuPosState({
-        x: e.clientX - dragOffset.current.x,
-        y: e.clientY - dragOffset.current.y,
-      });
-    }
-    function onMouseUp() {
-      dragging.current = false;
-      document.body.style.userSelect = "";
-    }
-    if (debug) {
-      window.addEventListener("mousemove", onMouseMove);
-      window.addEventListener("mouseup", onMouseUp);
-      return () => {
-        window.removeEventListener("mousemove", onMouseMove);
-        window.removeEventListener("mouseup", onMouseUp);
-      };
-    }
-  }, [debug]);
+  const [debugMenuPosState, handleDebugMenuMouseDown] = useDraggablePosition({ x: 100, y: 100 }, debug);
 
   // Mouse click for FALL-IN
   function handleCanvasClickWrapper(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {

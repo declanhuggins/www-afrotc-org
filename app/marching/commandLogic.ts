@@ -2,10 +2,32 @@
 import { Flight, Cadet, Direction, CADENCES, Cadence, setInchesToPixels, setPixelsToInches, marchToElement, rotate, moveForward, DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, DEFAULT_INPUT_COUNT, DEFAULT_ELEMENT_COUNT, DEFAULT_INTERVAL, DEFAULT_DISTANCE, DEFAULT_AREA_FEET } from "./commonLib";
 
 // --- Static Command Lists ---
+export type AtomicCommandType = 'preparatory' | 'execution' | 'other';
+
+export interface AtomicCommandDef {
+  command: typeof ATOMIC_COMMANDS[number];
+  type: AtomicCommandType;
+}
+
 export const ATOMIC_COMMANDS = [
   "FORWARD", "HALF STEPS", "LEFT", "RIGHT", "ABOUT", "FLIGHT", "FACE", "MARCH", "HALT", "FALL-IN", "AS YOU WERE", "ROTATE FALL-IN"
 ] as const;
 export type AtomicCommand = typeof ATOMIC_COMMANDS[number];
+
+export const ATOMIC_COMMAND_DEFS: Record<AtomicCommand, AtomicCommandDef> = {
+  "FORWARD": { command: "FORWARD", type: "preparatory" },
+  "HALF STEPS": { command: "HALF STEPS", type: "preparatory" },
+  "LEFT": { command: "LEFT", type: "preparatory" },
+  "RIGHT": { command: "RIGHT", type: "preparatory" },
+  "ABOUT": { command: "ABOUT", type: "preparatory" },
+  "FLIGHT": { command: "FLIGHT", type: "preparatory" },
+  "FACE": { command: "FACE", type: "execution" },
+  "MARCH": { command: "MARCH", type: "execution" },
+  "HALT": { command: "HALT", type: "execution" },
+  "FALL-IN": { command: "FALL-IN", type: "execution" },
+  "AS YOU WERE": { command: "AS YOU WERE", type: "other" },
+  "ROTATE FALL-IN": { command: "ROTATE FALL-IN", type: "other" },
+};
 
 export const UI_TO_ATOMIC: Record<string, AtomicCommand[]> = {
   "FORWARD MARCH": ["FORWARD", "MARCH"],
@@ -25,13 +47,13 @@ export const VALID_PREP_EXEC_PAIRS = new Set(
     .map(([prep, exec]) => `${prep}|${exec}`)
 );
 
-export const SCORABLE_COMMANDS = [
-  "FORWARD|MARCH",
-  "LEFT|FACE",
-  "RIGHT|FACE",
-  "ABOUT|FACE",
-  "FLIGHT|HALT",
-  "HALF STEPS|MARCH",
+export const SCORABLE_COMMANDS: Array<[AtomicCommand, AtomicCommand]> = [
+  ["FORWARD", "MARCH"],
+  ["LEFT", "FACE"],
+  ["RIGHT", "FACE"],
+  ["ABOUT", "FACE"],
+  ["FLIGHT", "HALT"],
+  ["HALF STEPS", "MARCH"],
 ];
 
 export const COMMANDS = [
@@ -45,6 +67,19 @@ export const COMMANDS = [
   { key: "r", label: "ROTATE FALL-IN" },
   { key: "Esc", label: "AS YOU WERE" },
 ];
+
+// --- Keyboard event handler ---
+export const KEY_TO_COMMAND_LABEL: Record<string, string> = {
+  "w": "FORWARD MARCH",
+  "a": "LEFT FACE",
+  "d": "RIGHT FACE",
+  "s": "ABOUT FACE",
+  " ": "FLIGHT HALT",
+  "h": "HALF STEPS",
+  "f": "FALL-IN",
+  "r": "ROTATE FALL-IN",
+  "escape": "AS YOU WERE",
+};
 
 // handleCommandLogic: refactored from page.tsx
 export async function handleCommandLogic({
@@ -121,7 +156,7 @@ export async function handleCommandLogic({
   function shouldAbort() {
     return abortController && abortController.signal.aborted;
   }
-  const isExecution = ["MARCH", "FACE", "HALT", "FALL-IN"].includes(cmd);
+  const isExecution = ATOMIC_COMMAND_DEFS[cmd]?.type === 'execution';
   if (isExecution) {
     // Only process if there is a valid preparatory-execution pair
     const prep = currentPreparatoryCommandRef.current;
@@ -329,6 +364,8 @@ export function useMarchingState() {
   const [fallInMode, setFallInMode] = useState(false);
   const [fallInPreview, setFallInPreview] = useState<{x: number, y: number} | null>(null);
   const [fallInDir, setFallInDir] = useState<Direction>(0);
+  // Track last mouse position for fall-in preview
+  const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
   const lastStepTimeRef = useRef<number | null>(null);
   const [commandHistory, setCommandHistory] = useState<
     { prep?: AtomicCommand; exec?: AtomicCommand; status: 'pending' | 'error' | 'success' | 'asYouWere' }[]
@@ -384,21 +421,24 @@ export function useMarchingState() {
           const isValid = VALID_PREP_EXEC_PAIRS.has(`${hist[i].prep}|${cmd}`);
           if (isValid) {
             // --- Scoring logic ---
-            const combo = `${hist[i].prep}|${cmd}`;
-            if (
-              SCORABLE_COMMANDS.includes(combo) &&
-              !scoredCommands.has(combo) &&
-              !boundary
-            ) {
-              setScore((s) => s + 1);
-              setScoredCommands((prev) => new Set(prev).add(combo));
-              const idx = SCORABLE_COMMANDS.indexOf(combo);
-              if (idx !== -1) {
-                setCommandStatus((prev) => {
-                  const next = [...prev];
-                  next[idx] = true;
-                  return next;
-                });
+            if (typeof hist[i].prep !== 'undefined') {
+              const combo: [AtomicCommand, AtomicCommand] = [hist[i].prep as AtomicCommand, cmd];
+              const comboKey = combo.join('|');
+              if (
+                SCORABLE_COMMANDS.some(([a, b]) => a === combo[0] && b === combo[1]) &&
+                !scoredCommands.has(comboKey) &&
+                !boundary
+              ) {
+                setScore((s) => s + 1);
+                setScoredCommands((prev) => new Set(prev).add(comboKey));
+                const idx = SCORABLE_COMMANDS.findIndex(([a, b]) => a === combo[0] && b === combo[1]);
+                if (idx !== -1) {
+                  setCommandStatus((prev) => {
+                    const next = [...prev];
+                    next[idx] = true;
+                    return next;
+                  });
+                }
               }
             }
             setCurrentPreparatoryCommand(null);
@@ -584,18 +624,7 @@ export function useMarchingState() {
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON") return;
     // Map keys to commands
     const key = e.key.toLowerCase();
-    const keyMap: Record<string, string> = {
-      "w": "FORWARD MARCH",
-      "a": "LEFT FACE",
-      "d": "RIGHT FACE",
-      "s": "ABOUT FACE",
-      " ": "FLIGHT HALT",
-      "h": "HALF STEPS",
-      "f": "FALL-IN",
-      "r": "ROTATE FALL-IN",
-      "escape": "AS YOU WERE",
-    };
-    const cmdLabel = keyMap[key];
+    const cmdLabel = KEY_TO_COMMAND_LABEL[key];
     if (!cmdLabel) return;
     const atomicSequence = UI_TO_ATOMIC[cmdLabel];
     if (!atomicSequence) return;

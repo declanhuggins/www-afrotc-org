@@ -232,3 +232,53 @@ export function setPixelsToInches(fn: (pixels: number) => number) {
 export function getPixelsToInches() {
   return _pixelsToInches;
 }
+
+// --- Draggable Position Hook ---
+// Moved from useDraggablePosition.ts
+import { useRef, useState, useEffect, Dispatch, SetStateAction } from "react";
+
+export function useDraggablePosition(
+  initial: { x: number; y: number },
+  enabled: boolean
+): [
+  { x: number; y: number },
+  (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void,
+  Dispatch<SetStateAction<{ x: number; y: number }>>
+] {
+  const [pos, setPos] = useState(initial);
+  const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const dragging = useRef(false);
+
+  function onMouseDown(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
+    dragging.current = true;
+    dragOffset.current = {
+      x: e.clientX - pos.x,
+      y: e.clientY - pos.y,
+    };
+    document.body.style.userSelect = "none";
+  }
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!dragging.current) return;
+      setPos({
+        x: e.clientX - dragOffset.current.x,
+        y: e.clientY - dragOffset.current.y,
+      });
+    }
+    function onMouseUp() {
+      dragging.current = false;
+      document.body.style.userSelect = "";
+    }
+    if (enabled) {
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+      return () => {
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+      };
+    }
+  }, [enabled]);
+
+  return [pos, onMouseDown, setPos];
+}
