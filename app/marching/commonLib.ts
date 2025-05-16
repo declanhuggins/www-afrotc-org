@@ -172,7 +172,6 @@ export async function marchToElement(
   // Find any cadet in the target element (not the guidon)
   const targetCadet = flight.members.find(c => c.element === targetElement && !c.isGuidon);
   if (!targetCadet) {
-    console.log('[marchToElement] No target cadet found for element', targetElement);
     return;
   }
   // Determine axis: if facing up/down (0/180), align y; if facing left/right (90/270), align x
@@ -189,7 +188,6 @@ export async function marchToElement(
     cadetAxis = cadet.x;
     axisType = 'x';
   }
-  console.log('[marchToElement] Cadet dir:', cadet.dir, 'Axis:', axisType, 'From:', cadetAxis, 'To:', targetAxis);
   // Compute distance in inches
   const pxPerInch = getPixelsToInches()(1);
   const distInPx = targetAxis - cadetAxis;
@@ -198,21 +196,17 @@ export async function marchToElement(
   const delay = 60000 / flight.cadence.bpm;
   let stepCount = 0;
   while (distInInches > step) {
-    console.log(`[marchToElement] Step ${++stepCount}: moving ${step} inches`);
     moveForward(cadet, 1, step);
     if (onStep) onStep();
     await new Promise(res => setTimeout(res, delay));
     distInInches -= step;
-    console.log(`[marchToElement] Remaining distance: ${distInInches} inches`);
   }
   if (distInInches > 0.01) {
-    console.log(`[marchToElement] Final step: moving ${distInInches} inches`);
     moveForward(cadet, 1, distInInches);
     if (onStep) onStep();
     await new Promise(res => setTimeout(res, delay));
   }
   cadet.element = targetElement;
-  console.log('[marchToElement] Finished. Cadet now at element', cadet.element, 'Position:', cadet.x, cadet.y);
 }
 
 // --- Conversion utilities ---

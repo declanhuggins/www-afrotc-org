@@ -102,6 +102,7 @@ export async function handleCommandLogic({
   marchToElement,
   setFlight,
   fallInMode,
+  lastMousePosRef,
 }: {
   cmd: AtomicCommand;
   flight: Flight;
@@ -113,8 +114,8 @@ export async function handleCommandLogic({
   setFallInPreview: React.Dispatch<React.SetStateAction<{ x: number; y: number } | null>>;
   setFallInDir: (v: Direction | ((d: Direction) => Direction)) => void;
   showPopupForBeats: (cmd: string, beats?: number) => void;
-  commandInProgressRef: React.MutableRefObject<AbortController | null>;
-  currentPreparatoryCommandRef: React.MutableRefObject<AtomicCommand | null>;
+  commandInProgressRef: React.RefObject<AbortController | null>;
+  currentPreparatoryCommandRef: React.RefObject<AtomicCommand | null>;
   VALID_PREP_EXEC_PAIRS: Set<string>;
   pushPrep: (cmd: AtomicCommand) => void;
   pushExec: (cmd: AtomicCommand) => void;
@@ -122,6 +123,7 @@ export async function handleCommandLogic({
   marchToElement: (cadet: Cadet, targetElement: number, flight: Flight, onStep?: () => void) => Promise<void>;
   setFlight: (f: Flight | ((prev: Flight) => Flight)) => void;
   fallInMode: boolean;
+  lastMousePosRef: React.RefObject<{ x: number; y: number } | null>;
 }) {
   setCurrentCommand(cmd);
   // AS YOU WERE: always interrupt and log
@@ -328,7 +330,12 @@ export async function handleCommandLogic({
       showPopupForBeats("FALL-IN");
       pushExec("FALL-IN");
       setFallInMode(true);
-      setFallInPreview(null);
+      setFallInPreview(
+          lastMousePosRef.current || {
+            x: DEFAULT_SCREEN_WIDTH / 2,
+            y: DEFAULT_SCREEN_HEIGHT / 2,
+          }
+        );
       setFallInDir(0);
       break;
     }
@@ -546,6 +553,7 @@ export function useMarchingState() {
       marchToElement,
       setFlight,
       fallInMode,
+      lastMousePosRef,
     });
   }, [flight, fallInMode, pushPrep, pushExec]);
 
@@ -559,10 +567,11 @@ export function useMarchingState() {
     handleFallIn({ x, y }, fallInDir);
   }
   function handleCanvasMove(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
-    if (!fallInMode) return;
     const rect = (e.target as HTMLDivElement).getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+    lastMousePosRef.current = { x, y };
+    if (!fallInMode) return;
     setFallInPreview({ x, y });
   }
   const handleSendAtomicCommand = (cmd: string) => handleCommand(cmd as AtomicCommand);
