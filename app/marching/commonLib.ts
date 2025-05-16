@@ -1,4 +1,13 @@
+// Renamed from lib.ts
 // Marching simulation types and logic
+
+export const DEFAULT_SCREEN_WIDTH = 800;
+export const DEFAULT_SCREEN_HEIGHT = 800;
+export const DEFAULT_INPUT_COUNT = 13;
+export const DEFAULT_ELEMENT_COUNT = 3;
+export const DEFAULT_INTERVAL = 35; // inches
+export const DEFAULT_DISTANCE = 30; // inches
+export const DEFAULT_AREA_FEET = 25; // feet
 
 export interface Cadet {
   x: number;
@@ -8,9 +17,6 @@ export interface Cadet {
   rank: number; // 0-based rank (row)
   element: number; // 0-based element (column)
 }
-
-export const DEFAULT_INTERVAL = 35; // inches
-export const DEFAULT_DISTANCE = 30; // inches;
 
 export type Formation = "LINE" | "COLUMN" | "INVERSE_LINE" | "INVERSE_COLUMN";
 
@@ -157,7 +163,6 @@ export function initPositions(
   }
 }
 
-// March guidon (or any cadet) from their current element to a target element, taking full steps and a final partial step to align exactly in-line with the target element's axis.
 export async function marchToElement(
   cadet: Cadet,
   targetElement: number,

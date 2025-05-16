@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { Flight } from "./lib";
+import { Flight } from "./commonLib";
 
 interface DebugMenuProps {
   flight: Flight;
@@ -27,7 +27,7 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({
     <div
       ref={debugMenuRef}
       style={{
-        position: "fixed",
+        position: "absolute",
         top: debugMenuPos.y,
         left: debugMenuPos.x,
         zIndex: 1000,

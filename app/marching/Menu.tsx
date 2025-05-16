@@ -1,5 +1,5 @@
 import React from "react";
-import { clamp } from "./lib";
+import { clamp } from "./commonLib";
 
 interface MenuProps {
   inputCount: number;
