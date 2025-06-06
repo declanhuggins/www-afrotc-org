@@ -1,4 +1,13 @@
+// Renamed from lib.ts
 // Marching simulation types and logic
+
+export const DEFAULT_SCREEN_WIDTH = 800;
+export const DEFAULT_SCREEN_HEIGHT = 800;
+export const DEFAULT_INPUT_COUNT = 13;
+export const DEFAULT_ELEMENT_COUNT = 3;
+export const DEFAULT_INTERVAL = 35; // inches
+export const DEFAULT_DISTANCE = 30; // inches
+export const DEFAULT_AREA_FEET = 25; // feet
 
 export interface Cadet {
   x: number;
@@ -8,9 +17,6 @@ export interface Cadet {
   rank: number; // 0-based rank (row)
   element: number; // 0-based element (column)
 }
-
-export const DEFAULT_INTERVAL = 35; // inches
-export const DEFAULT_DISTANCE = 30; // inches;
 
 export type Formation = "LINE" | "COLUMN" | "INVERSE_LINE" | "INVERSE_COLUMN";
 
@@ -157,7 +163,6 @@ export function initPositions(
   }
 }
 
-// March guidon (or any cadet) from their current element to a target element, taking full steps and a final partial step to align exactly in-line with the target element's axis.
 export async function marchToElement(
   cadet: Cadet,
   targetElement: number,
@@ -167,47 +172,37 @@ export async function marchToElement(
   // Find any cadet in the target element (not the guidon)
   const targetCadet = flight.members.find(c => c.element === targetElement && !c.isGuidon);
   if (!targetCadet) {
-    console.log('[marchToElement] No target cadet found for element', targetElement);
     return;
   }
   // Determine axis: if facing up/down (0/180), align y; if facing left/right (90/270), align x
   let targetAxis, cadetAxis;
-  let axisType = '';
   if (cadet.dir < 45 || (cadet.dir > 135 && cadet.dir < 225) || cadet.dir > 315) {
     // Align y
     targetAxis = targetCadet.y;
     cadetAxis = cadet.y;
-    axisType = 'y';
   } else {
     // Align x
     targetAxis = targetCadet.x;
     cadetAxis = cadet.x;
-    axisType = 'x';
   }
-  console.log('[marchToElement] Cadet dir:', cadet.dir, 'Axis:', axisType, 'From:', cadetAxis, 'To:', targetAxis);
   // Compute distance in inches
   const pxPerInch = getPixelsToInches()(1);
   const distInPx = targetAxis - cadetAxis;
   let distInInches = Math.abs(distInPx) * pxPerInch;
   const step =  flight.cadence.stepLength;
   const delay = 60000 / flight.cadence.bpm;
-  let stepCount = 0;
   while (distInInches > step) {
-    console.log(`[marchToElement] Step ${++stepCount}: moving ${step} inches`);
     moveForward(cadet, 1, step);
     if (onStep) onStep();
     await new Promise(res => setTimeout(res, delay));
     distInInches -= step;
-    console.log(`[marchToElement] Remaining distance: ${distInInches} inches`);
   }
   if (distInInches > 0.01) {
-    console.log(`[marchToElement] Final step: moving ${distInInches} inches`);
     moveForward(cadet, 1, distInInches);
     if (onStep) onStep();
     await new Promise(res => setTimeout(res, delay));
   }
   cadet.element = targetElement;
-  console.log('[marchToElement] Finished. Cadet now at element', cadet.element, 'Position:', cadet.x, cadet.y);
 }
 
 // --- Conversion utilities ---
@@ -226,4 +221,54 @@ export function setPixelsToInches(fn: (pixels: number) => number) {
 }
 export function getPixelsToInches() {
   return _pixelsToInches;
+}
+
+// --- Draggable Position Hook ---
+// Moved from useDraggablePosition.ts
+import { useRef, useState, useEffect, Dispatch, SetStateAction } from "react";
+
+export function useDraggablePosition(
+  initial: { x: number; y: number },
+  enabled: boolean
+): [
+  { x: number; y: number },
+  (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => void,
+  Dispatch<SetStateAction<{ x: number; y: number }>>
+] {
+  const [pos, setPos] = useState(initial);
+  const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const dragging = useRef(false);
+
+  function onMouseDown(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
+    dragging.current = true;
+    dragOffset.current = {
+      x: e.clientX - pos.x,
+      y: e.clientY - pos.y,
+    };
+    document.body.style.userSelect = "none";
+  }
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!dragging.current) return;
+      setPos({
+        x: e.clientX - dragOffset.current.x,
+        y: e.clientY - dragOffset.current.y,
+      });
+    }
+    function onMouseUp() {
+      dragging.current = false;
+      document.body.style.userSelect = "";
+    }
+    if (enabled) {
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+      return () => {
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+      };
+    }
+  }, [enabled]);
+
+  return [pos, onMouseDown, setPos];
 }

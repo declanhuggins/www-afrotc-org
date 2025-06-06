@@ -1,5 +1,5 @@
 import React, { useRef } from "react";
-import { Flight } from "./lib";
+import { Flight } from "./commonLib";
 
 interface DebugMenuProps {
   flight: Flight;
@@ -27,7 +27,7 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({
     <div
       ref={debugMenuRef}
       style={{
-        position: "fixed",
+        position: "absolute",
         top: debugMenuPos.y,
         left: debugMenuPos.x,
         zIndex: 1000,
@@ -51,6 +51,13 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({
           <div>Current Command: <span className="font-mono font-bold">{currentCommand ?? "(none)"}</span></div>
           <div>Preparatory Command: <span className="font-mono font-bold">{currentPreparatoryCommand ?? "(none)"}</span></div>
           <div>Execution Command: <span className="font-mono font-bold">{currentExecutionCommand ?? "(none)"}</span></div>
+        </div>
+        {/* Cadence debug info */}
+        <div className="mb-3 text-xs text-gray-700 dark:text-gray-200">
+          <div className="font-semibold">Cadence:</div>
+          <div>Name: <span className="font-mono font-bold">{flight.cadence?.name}</span></div>
+          <div>BPM: <span className="font-mono font-bold">{flight.cadence?.bpm}</span></div>
+          <div>Step Length: <span className="font-mono font-bold">{flight.cadence?.stepLength} in</span></div>
         </div>
         <div className="flex flex-wrap gap-2">
           {ATOMIC_COMMANDS.map((cmd) => (

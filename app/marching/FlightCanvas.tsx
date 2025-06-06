@@ -1,5 +1,5 @@
 import React from "react";
-import { Cadet, degToRad } from "./lib";
+import { Cadet, degToRad } from "./commonLib";
 
 interface FlightCanvasProps {
   cadets: Cadet[];
