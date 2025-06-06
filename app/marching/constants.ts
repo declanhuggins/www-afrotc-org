@@ -51,6 +51,13 @@ export const VALID_PREP_EXEC_PAIRS = new Set(
     .map(([prep, exec]) => `${prep}|${exec}`)
 );
 
+export const STATIONARY_PREP_EXEC_PAIRS = new Set([
+  'LEFT|FACE',
+  'RIGHT|FACE',
+  'ABOUT|FACE',
+  'FLIGHT|FALL-IN',
+]);
+
 export const SCORABLE_COMMANDS: Array<[AtomicCommand, AtomicCommand]> = [
   ['FORWARD', 'MARCH'],
   ['LEFT', 'FACE'],

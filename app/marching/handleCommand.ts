@@ -14,6 +14,7 @@ import {
 import {
   AtomicCommand,
   ATOMIC_COMMAND_DEFS,
+  STATIONARY_PREP_EXEC_PAIRS,
 } from './constants';
 
 export async function handleCommandLogic({
@@ -106,7 +107,8 @@ export async function handleCommandLogic({
   const isExecution = ATOMIC_COMMAND_DEFS[cmd]?.type === 'execution';
   if (isExecution) {
     const prep = currentPreparatoryCommandRef.current;
-    const isValid = prep && VALID_PREP_EXEC_PAIRS.has(`${prep}|${cmd}`);
+    const pairKey = prep ? `${prep}|${cmd}` : null;
+    const isValid = prep && VALID_PREP_EXEC_PAIRS.has(pairKey as string);
     if (!prep) {
       pushExec(cmd);
       setCurrentExecutionCommand(null);
@@ -115,6 +117,26 @@ export async function handleCommandLogic({
     if (!isValid) {
       pushExec(cmd);
       setCurrentExecutionCommand(null);
+      return;
+    }
+    if (pairKey && STATIONARY_PREP_EXEC_PAIRS.has(pairKey) && flight.isMarching) {
+      setCurrentExecutionCommand(cmd);
+      showPopupForBeats(cmd);
+      setCommandHistory((hist) => {
+        for (let i = hist.length - 1; i >= 0; i--) {
+          if (hist[i].status === 'pending' && hist[i].prep && !hist[i].exec) {
+            return [
+              ...hist.slice(0, i),
+              { ...hist[i], exec: cmd, status: 'error' },
+              ...hist.slice(i + 1),
+            ];
+          }
+        }
+        return [...hist, { prep: undefined, exec: cmd, status: 'error' }];
+      });
+      setCurrentPreparatoryCommand(null);
+      setCurrentExecutionCommand(null);
+      currentPreparatoryCommandRef.current = null;
       return;
     }
   }
