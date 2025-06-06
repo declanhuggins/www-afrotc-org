@@ -101,6 +101,36 @@ export async function handleCommandLogic({
     return;
   }
 
+  if (commandInProgressRef.current) {
+    const type = ATOMIC_COMMAND_DEFS[cmd]?.type;
+    if (type === 'preparatory') {
+      setCurrentPreparatoryCommand(cmd);
+      showPopupForBeats(cmd);
+      setCommandHistory((hist) => [...hist, { prep: cmd, status: 'error' }]);
+      setCurrentPreparatoryCommand(null);
+      currentPreparatoryCommandRef.current = null;
+    } else if (type === 'execution') {
+      setCurrentExecutionCommand(cmd);
+      showPopupForBeats(cmd);
+      setCommandHistory((hist) => {
+        for (let i = hist.length - 1; i >= 0; i--) {
+          if (hist[i].status === 'pending' && hist[i].prep && !hist[i].exec) {
+            return [
+              ...hist.slice(0, i),
+              { ...hist[i], exec: cmd, status: 'error' },
+              ...hist.slice(i + 1),
+            ];
+          }
+        }
+        return [...hist, { prep: undefined, exec: cmd, status: 'error' }];
+      });
+      setCurrentPreparatoryCommand(null);
+      setCurrentExecutionCommand(null);
+      currentPreparatoryCommandRef.current = null;
+    }
+    return;
+  }
+
   let abortController: AbortController | null = null;
   const shouldAbort = () => abortController && abortController.signal.aborted;
 
@@ -163,16 +193,30 @@ export async function handleCommandLogic({
         case 'FORWARD': {
           const cadence = CADENCE_MAP['Quick Time'];
           const stepInterval = 60000 / cadence.bpm;
+          abortController = new AbortController();
+          commandInProgressRef.current = abortController;
           setTimeout(() => {
-            setFlight((f: Flight) => ({ ...f, cadence, isMarching: true }));
+            if (abortController && !abortController.signal.aborted) {
+              setFlight((f: Flight) => ({ ...f, cadence, isMarching: true }));
+            }
+            if (commandInProgressRef.current === abortController) {
+              commandInProgressRef.current = null;
+            }
           }, stepInterval);
           break;
         }
         case 'HALF STEPS': {
           const cadence = CADENCE_MAP['Half Step'];
           const stepInterval = 60000 / cadence.bpm;
+          abortController = new AbortController();
+          commandInProgressRef.current = abortController;
           setTimeout(() => {
-            setFlight((f: Flight) => ({ ...f, cadence, isMarching: true }));
+            if (abortController && !abortController.signal.aborted) {
+              setFlight((f: Flight) => ({ ...f, cadence, isMarching: true }));
+            }
+            if (commandInProgressRef.current === abortController) {
+              commandInProgressRef.current = null;
+            }
           }, stepInterval);
           break;
         }
@@ -437,8 +481,15 @@ export async function handleCommandLogic({
       showPopupForBeats('HALT');
       pushExec('HALT');
       const haltDelay = 60000 / flight.cadence.bpm;
+      abortController = new AbortController();
+      commandInProgressRef.current = abortController;
       setTimeout(() => {
-        setFlight((f: Flight) => ({ ...f, isMarching: false }));
+        if (abortController && !abortController.signal.aborted) {
+          setFlight((f: Flight) => ({ ...f, isMarching: false }));
+        }
+        if (commandInProgressRef.current === abortController) {
+          commandInProgressRef.current = null;
+        }
       }, haltDelay);
       const cadence = CADENCE_MAP['Quick Time'];
       await awaitDelay(haltDelay);
