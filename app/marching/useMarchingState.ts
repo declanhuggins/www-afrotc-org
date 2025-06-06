@@ -11,10 +11,12 @@ import {
   setInchesToPixels,
   setPixelsToInches,
   moveForward,
+  marchToElement,
   Flight,
   Direction,
+  createFlight,
+  initPositions,
 } from './commonLib';
-import { createFlightLogic, initPositionsLogic } from './flightLogic';
 import {
   AtomicCommand,
   COMMANDS,
@@ -87,7 +89,7 @@ export function useMarchingState() {
   }, [inchesToPixels, pixelsToInches]);
 
   const [flight, setFlight] = useState<Flight>(() =>
-    createFlightLogic(inputCount, elementCount, {
+    createFlight(inputCount, elementCount, {
       width: SCREEN_WIDTH,
       height: SCREEN_HEIGHT,
       areaWidth: MARCHING_AREA_SIZE,
@@ -250,7 +252,7 @@ export function useMarchingState() {
   const resetFlight = (center?: { x: number; y: number } | null, dir?: Direction) => {
     const useDir = dir !== undefined ? dir : fallInDir;
     const useCenter = center !== undefined ? center : null;
-    const f2 = createFlightLogic(
+    const f2 = createFlight(
       inputCount,
       elementCount,
       {
@@ -264,7 +266,7 @@ export function useMarchingState() {
       interval,
       distance
     );
-    initPositionsLogic(
+    initPositions(
       f2,
       elementCount,
       {
@@ -290,7 +292,7 @@ export function useMarchingState() {
 
   function handleFallIn(center: { x: number; y: number }, dir?: Direction) {
     const useDir = dir !== undefined ? dir : fallInDir;
-    const f = createFlightLogic(
+    const f = createFlight(
       inputCount,
       elementCount,
       {

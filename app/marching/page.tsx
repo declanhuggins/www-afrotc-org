@@ -1,8 +1,7 @@
 "use client";
 import React, { useEffect } from "react";
 import clsx from "clsx";
-import { DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT } from "./commonLib";
-import { createFlightLogic } from "./flightLogic";
+import { DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, createFlight, initPositions } from "./commonLib";
 import { ATOMIC_COMMANDS, UI_TO_ATOMIC, COMMANDS } from './constants';
 import { useMarchingState } from './useMarchingState';
 import { setPixelsToInches } from "./commonLib";
@@ -182,7 +181,7 @@ export default function MarchingPage() {
               areaHeight={MARCHING_AREA_SIZE}
               boundary={boundary}
               previewCadets={fallInMode && fallInPreview ? (() => {
-                const f = createFlightLogic(inputCount, elementCount, {
+                const f = createFlight(inputCount, elementCount, {
                   width: DEFAULT_SCREEN_WIDTH,
                   height: DEFAULT_SCREEN_HEIGHT,
                   areaWidth: MARCHING_AREA_SIZE,
