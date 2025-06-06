@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect } from "react";
 import clsx from "clsx";
-import { DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, createFlight, initPositions } from "./commonLib";
+import { DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, createFlight } from "./commonLib";
 import { ATOMIC_COMMANDS, UI_TO_ATOMIC, COMMANDS } from './constants';
 import { useMarchingState } from './useMarchingState';
 import { setPixelsToInches } from "./commonLib";
