@@ -52,6 +52,13 @@ export const DebugMenu: React.FC<DebugMenuProps> = ({
           <div>Preparatory Command: <span className="font-mono font-bold">{currentPreparatoryCommand ?? "(none)"}</span></div>
           <div>Execution Command: <span className="font-mono font-bold">{currentExecutionCommand ?? "(none)"}</span></div>
         </div>
+        {/* Cadence debug info */}
+        <div className="mb-3 text-xs text-gray-700 dark:text-gray-200">
+          <div className="font-semibold">Cadence:</div>
+          <div>Name: <span className="font-mono font-bold">{flight.cadence?.name}</span></div>
+          <div>BPM: <span className="font-mono font-bold">{flight.cadence?.bpm}</span></div>
+          <div>Step Length: <span className="font-mono font-bold">{flight.cadence?.stepLength} in</span></div>
+        </div>
         <div className="flex flex-wrap gap-2">
           {ATOMIC_COMMANDS.map((cmd) => (
             <button

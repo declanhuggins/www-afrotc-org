@@ -410,6 +410,7 @@ export async function handleCommandLogic({
       break;
     }
     case 'HALT': {
+      const awaitDelay = (ms: number) => new Promise((res) => setTimeout(res, ms));
       setCurrentExecutionCommand('HALT');
       showPopupForBeats('HALT');
       pushExec('HALT');
@@ -417,6 +418,9 @@ export async function handleCommandLogic({
       setTimeout(() => {
         setFlight((f: Flight) => ({ ...f, isMarching: false }));
       }, haltDelay);
+      const cadence = CADENCE_MAP['Quick Time'];
+      await awaitDelay(haltDelay);
+      setFlight((f: Flight) => ({ ...f, cadence, isMarching: false }));
       break;
     }
     case 'FALL-IN': {
