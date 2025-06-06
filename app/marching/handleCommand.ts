@@ -196,7 +196,7 @@ export async function handleCommandLogic({
           abortController = new AbortController();
           commandInProgressRef.current = abortController;
           setTimeout(() => {
-            if (!abortController.signal.aborted) {
+            if (abortController && !abortController.signal.aborted) {
               setFlight((f: Flight) => ({ ...f, cadence, isMarching: true }));
             }
             if (commandInProgressRef.current === abortController) {
@@ -211,7 +211,7 @@ export async function handleCommandLogic({
           abortController = new AbortController();
           commandInProgressRef.current = abortController;
           setTimeout(() => {
-            if (!abortController.signal.aborted) {
+            if (abortController && !abortController.signal.aborted) {
               setFlight((f: Flight) => ({ ...f, cadence, isMarching: true }));
             }
             if (commandInProgressRef.current === abortController) {
@@ -484,7 +484,7 @@ export async function handleCommandLogic({
       abortController = new AbortController();
       commandInProgressRef.current = abortController;
       setTimeout(() => {
-        if (!abortController.signal.aborted) {
+        if (abortController && !abortController.signal.aborted) {
           setFlight((f: Flight) => ({ ...f, isMarching: false }));
         }
         if (commandInProgressRef.current === abortController) {

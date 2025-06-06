@@ -80,7 +80,7 @@ export const COMMANDS = [
   { key: 'h', label: 'HALF STEPS' },
   { key: 'f', label: 'FALL-IN' },
   { key: 'r', label: 'ROTATE FALL-IN' },
-  { key: 'Esc', label: 'AS YOU WERE' },
+  { key: 'Escape', label: 'AS YOU WERE' },
 ];
 
 export const KEY_TO_COMMAND_LABEL: Record<string, string> = COMMANDS.reduce(
