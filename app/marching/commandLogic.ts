@@ -1,5 +1,5 @@
 // Command handling and mapping logic
-import { Flight, Cadet, Direction, CADENCES, Cadence, setInchesToPixels, setPixelsToInches, marchToElement, rotate, moveForward, DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, DEFAULT_INPUT_COUNT, DEFAULT_ELEMENT_COUNT, DEFAULT_INTERVAL, DEFAULT_DISTANCE, DEFAULT_AREA_FEET } from "./commonLib";
+import { Flight, Cadet, Direction, CADENCES, Cadence, setInchesToPixels, setPixelsToInches, marchToElement, rotate, moveForward, DEFAULT_SCREEN_WIDTH, DEFAULT_SCREEN_HEIGHT, DEFAULT_INPUT_COUNT, DEFAULT_ELEMENT_COUNT, DEFAULT_INTERVAL, DEFAULT_DISTANCE, DEFAULT_AREA_FEET, getInchesToPixels, getPixelsToInches } from "./commonLib";
 
 // --- Static Command Lists ---
 export type AtomicCommandType = 'preparatory' | 'execution' | 'other';
@@ -205,7 +205,7 @@ export async function handleCommandLogic({
       switch (currentPreparatoryCommandRef.current) {
         case "FORWARD": {
           // Standard forward march
-          let cadence = CADENCES["Quick Time"];
+          const cadence = CADENCES["Quick Time"];
           const stepInterval = 60000 / cadence.bpm;
           setTimeout(() => {
             setFlight((f: Flight) => ({ ...f, cadence, isMarching: true }));
@@ -214,7 +214,7 @@ export async function handleCommandLogic({
         }
         case "HALF STEPS": {
           // Half step march
-          let cadence = CADENCES["Half Step"];
+          const cadence = CADENCES["Half Step"];
           const stepInterval = 60000 / cadence.bpm;
           setTimeout(() => {
             setFlight((f: Flight) => ({ ...f, cadence, isMarching: true }));
@@ -222,7 +222,206 @@ export async function handleCommandLogic({
           break;
         }
         case "COLUMN RIGHT": {
-          // COLUMN RIGHT MARCH logic removed. TODO: Implement fresh logic per AFMAN 36-2203.
+          // COLUMN RIGHT MARCH: Generalized for any number of elements
+          if (flight.formation !== "COLUMN") break;
+          const f2 = { ...flight, members: flight.members.map((c: Cadet) => ({ ...c })) };
+          const elementCount = f2.elementCount;
+          const stepLength = getInchesToPixels()(24);
+          const quickTime = CADENCES["Quick Time"];
+          const halfStep = CADENCES["Half Step"];
+
+          // Sort members by element, then by rank (row)
+          const elements: Cadet[][] = Array.from({ length: elementCount }, (_, i) =>
+            f2.members.filter(c => c.element === i).sort((a, b) => a.rank - b.rank)
+          );
+          const guide = f2.members[0];
+
+          // Find element leaders (lowest rank > 0 in each element, or fallback to first)
+          const elementLeaders = elements.map(e => {
+            const nonGuidon = e.filter(c => c.rank > 0);
+            return nonGuidon.length > 0 ? nonGuidon[0] : e[0];
+          });
+
+          // Debug: Log element leaders
+          console.log("[COLUMN RIGHT] Element Leaders:", elementLeaders.map((l, i) => ({ element: l.element, rank: l.rank, x: l.x, y: l.y, elIdx: i })));
+
+          // Compute per-element pivot plans
+          const leaderPlan = (elIdx: number) => {
+            if (elIdx === elementCount - 1) {
+              return { firstPivot: 90, afterFirstPivotSteps: 1, secondPivot: 0 };
+            } else {
+              return {
+                firstPivot: 45,
+                afterFirstPivotSteps: 2 * (elementCount - 1 - elIdx) + 1,
+                secondPivot: 45,
+              };
+            }
+          };
+
+          // Track pivot/step state for each cadet by id (index in f2.members)
+          const cadetState: Record<number, { pivot1: boolean; stepsAfterPivot1: number; pivot2: boolean; inHalfStep: boolean }> = {};
+          f2.members.forEach((c, idx) => {
+            cadetState[idx] = { pivot1: false, stepsAfterPivot1: 0, pivot2: false, inHalfStep: false };
+          });
+
+          // --- FIX: Calculate pivot lines ONCE, at command time, using initial leader positions ---
+          const dir = guide.dir;
+          const elementPivotLines = Array(elementCount).fill(null);
+          if (dir === 90) {
+            for (let elIdx = 0; elIdx < elementCount; ++elIdx) {
+              elementPivotLines[elIdx] = elementLeaders[elIdx].x + stepLength;
+            }
+            console.log("[COLUMN RIGHT] Pivot X lines (fixed):", elementPivotLines);
+          } else if (dir === 0) {
+            for (let elIdx = 0; elIdx < elementCount; ++elIdx) {
+              elementPivotLines[elIdx] = elementLeaders[elIdx].y - stepLength;
+            }
+            console.log("[COLUMN RIGHT] Pivot Y lines (fixed):", elementPivotLines);
+          }
+
+          // Marching step function (do NOT recalculate elementPivotLines here!)
+          (window as unknown as { marchingStep: () => void }).marchingStep = () => {
+            for (let elIdx = 0; elIdx < elementCount; ++elIdx) {
+              const element = elements[elIdx];
+              const plan = leaderPlan(elIdx);
+              const leader = elementLeaders[elIdx];
+              for (let r = 0; r < element.length; ++r) {
+                const cadet = element[r];
+                const idx = f2.members.indexOf(cadet);
+                const state = cadetState[idx];
+                let crossed = false;
+                // Determine step size: after catch-up, use half step; otherwise, quick time
+                let step = getInchesToPixels()(state.inHalfStep ? halfStep.stepLength : quickTime.stepLength);
+                // Only print debug for element leader and the cadet directly behind them, but only if rank === 1
+                if ((cadet === leader || (r > 0 && element[r - 1] === leader)) && cadet.rank === 1) {
+                  console.log(`[COLUMN RIGHT] Cadet (el ${elIdx}, rank ${cadet.rank}, idx ${idx}) pos: x=${cadet.x}, y=${cadet.y}, pivot1=${state.pivot1}, pivot2=${state.pivot2}, inHalfStep=${state.inHalfStep}`);
+                }
+                // Determine if cadet crosses the pivot line this step
+                if (dir === 90 && elementPivotLines[elIdx] !== null && !state.pivot1) {
+                  if (cadet.x + step >= elementPivotLines[elIdx]) {
+                    step = elementPivotLines[elIdx] - cadet.x;
+                    crossed = true;
+                    if (cadet === leader || (r > 0 && element[r - 1] === leader)) {
+                      if (cadet.rank === 1) {
+                        console.log(`[COLUMN RIGHT] Cadet (el ${elIdx}, rank ${cadet.rank}, idx ${idx}) will cross pivot X line at ${elementPivotLines[elIdx]}`);
+                      }
+                    }
+                  }
+                } else if (dir === 0 && elementPivotLines[elIdx] !== null && !state.pivot1) {
+                  if (cadet.y - step <= elementPivotLines[elIdx]) {
+                    step = cadet.y - elementPivotLines[elIdx];
+                    crossed = true;
+                    if (cadet === leader || (r > 0 && element[r - 1] === leader)) {
+                      if (cadet.rank === 1) {
+                        console.log(`[COLUMN RIGHT] Cadet (el ${elIdx}, rank ${cadet.rank}, idx ${idx}) will cross pivot Y line at ${elementPivotLines[elIdx]}`);
+                      }
+                    }
+                  }
+                }
+                moveForward(cadet, 1, getPixelsToInches()(step));
+                // Debug: Log cadet position after move
+                if ((cadet === leader || (r > 0 && element[r - 1] === leader)) && cadet.rank === 1) {
+                  console.log(`[COLUMN RIGHT] Cadet (el ${elIdx}, rank ${cadet.rank}, idx ${idx}) after move: x=${cadet.x}, y=${cadet.y}`);
+                }
+                // Leader: increment steps after first pivot
+                if (cadet === leader && !state.pivot1) {
+                  state.stepsAfterPivot1 = (state.stepsAfterPivot1 || 0) + 1;
+                  if (cadet.rank === 1) {
+                    console.log(`[COLUMN RIGHT] Leader (el ${elIdx}, rank ${cadet.rank}, idx ${idx}) stepsAfterPivot1: ${state.stepsAfterPivot1}`);
+                  }
+                }
+                // PIVOT LOGIC
+                if (cadet === leader && elIdx === elementCount - 1 && !state.pivot1 && crossed) {
+                  rotate(cadet, 90);
+                  state.pivot1 = true;
+                  state.inHalfStep = true;
+                  console.log(`[COLUMN RIGHT] Rightmost leader (el ${elIdx}, rank ${cadet.rank}, idx ${idx}) pivots 90° and goes to half step.`);
+                } else if (cadet === leader && elIdx !== elementCount - 1 && !state.pivot1 && crossed) {
+                  rotate(cadet, plan.firstPivot);
+                  state.pivot1 = true;
+                  state.stepsAfterPivot1 = 0;
+                  console.log(`[COLUMN RIGHT] Leader (el ${elIdx}, rank ${cadet.rank}, idx ${idx}) pivots 45° (first) at pivot line.`);
+                } else if (cadet !== leader && !state.pivot1 && crossed) {
+                  rotate(cadet, plan.firstPivot);
+                  state.pivot1 = true;
+                  state.stepsAfterPivot1 = 0;
+                  if (r > 0 && element[r - 1] === leader) {
+                    if (cadet.rank === 1) {
+                      console.log(`[COLUMN RIGHT] Cadet (el ${elIdx}, rank ${cadet.rank}, idx ${idx}) pivots 45° (first) at pivot line.`);
+                    }
+                  }
+                }
+                // After first pivot, count steps, do second pivot if needed
+                if (state.pivot1 && !state.pivot2 && elIdx !== elementCount - 1) {
+                  state.stepsAfterPivot1 = (state.stepsAfterPivot1 || 0) + 1;
+                  if (state.stepsAfterPivot1 === plan.afterFirstPivotSteps && plan.secondPivot) {
+                    rotate(cadet, plan.secondPivot);
+                    state.pivot2 = true;
+                    // DO NOT set inHalfStep yet! Wait for catch-up.
+                    if (cadet === leader || (r > 0 && element[r - 1] === leader)) {
+                      if (cadet.rank === 1) {
+                        console.log(`[COLUMN RIGHT] Cadet (el ${elIdx}, rank ${cadet.rank}, idx ${idx}) pivots 45° (second). Will switch to half step after catch-up.`);
+                      }
+                    }
+                  }
+                } else if (state.pivot1 && elIdx === elementCount - 1) {
+                  state.inHalfStep = true;
+                }
+                // --- CATCH-UP LOGIC: After second pivot, stay in quick time until caught up to corresponding cadet in rightmost element ---
+                if (state.pivot2 && !state.inHalfStep && elIdx !== elementCount - 1) {
+                  // Find corresponding cadet in rightmost element (same rank), skipping guide (rank 0)
+                  const rightmostElement = elements[elementCount - 1].filter(c => c.rank > 0);
+                  // r is the index in the element, but we want the cadet with the same rank number
+                  const rightmostCadet = rightmostElement.find(c => c.rank === cadet.rank);
+                  if (rightmostCadet) {
+                    // Compare position in the new direction (after pivots, should be marching in new axis)
+                    let caughtUp = false;
+                    if (dir === 0) {
+                      // After column right from dir=0, new direction is right)
+                      if (cadet.x >= rightmostCadet.x) caughtUp = true;
+                    } else if (dir === 90) {
+                      // After column right from dir=90, new direction is down
+                      console.log(`[COLUMN RIGHT] Cadet (el ${elIdx}, rank ${cadet.rank}, idx ${idx}) checking catch-up: cadet.y=${cadet.y}, rightmostCadet.y=${rightmostCadet.y}`);
+                      if (cadet.y >= rightmostCadet.y) caughtUp = true;
+                    }
+                    if (caughtUp) {
+                      state.inHalfStep = true;
+                      if (cadet === leader || (r > 0 && element[r - 1] === leader)) {
+                        console.log(`[COLUMN RIGHT] Cadet (el ${elIdx}, rank ${cadet.rank}, idx ${idx}) has caught up to rightmost element (rank ${r}). Switching to half step.`);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            // Guide logic: follows rightmost element leader, then pivots 45° twice to get in front
+            if (guide) {
+              const guideIdx = f2.members.indexOf(guide);
+              const state = cadetState[guideIdx];
+              const step = state.inHalfStep ? halfStep.stepLength : quickTime.stepLength;
+              // Guide pivots at same line as rightmost element leader
+              if (dir === 90 && elementPivotLines[elementCount - 1] !== null && !state.pivot1) {
+                if (guide.x + step >= elementPivotLines[elementCount - 1]) {
+                  moveForward(guide, 1, getPixelsToInches()(step));
+                  rotate(guide, 90);
+                  state.pivot1 = true;
+                  // Now move ahead of rightmost leader, then 45° right, then 45° right and half step
+                  // For simplicity, just set inHalfStep after two 45° pivots
+                  rotate(guide, 45);
+                  moveForward(guide, 1, getPixelsToInches()(step));
+                  rotate(guide, 45);
+                  state.inHalfStep = true;
+                  console.log(`[COLUMN RIGHT] Guide pivots 90°, then two 45°s, and goes to half step.`);
+                } else {
+                  moveForward(guide, 1, getPixelsToInches()(step));
+                }
+              } else {
+                moveForward(guide, 1, getPixelsToInches()(step));
+              }
+            }
+            setFlight({ ...f2, members: f2.members.map(c => ({ ...c })) });
+          };
+          (window as unknown as { marchingStep: () => void }).marchingStep();
           break;
         }
         case "COLUMN LEFT": {
@@ -613,19 +812,19 @@ export function useMarchingState() {
     // Use provided center/dir or defaults
     const useDir = dir !== undefined ? dir : fallInDir;
     const useCenter = center !== undefined ? center : null;
-    const f = createFlightLogic(inputCount, elementCount, {
+    const f2 = createFlightLogic(inputCount, elementCount, {
       width: DEFAULT_SCREEN_WIDTH,
       height: DEFAULT_SCREEN_HEIGHT,
       areaWidth: MARCHING_AREA_SIZE,
       areaHeight: MARCHING_AREA_SIZE,
     }, useCenter ?? undefined, useDir, interval, distance);
-    initPositionsLogic(f, elementCount, {
+    initPositionsLogic(f2, elementCount, {
       width: DEFAULT_SCREEN_WIDTH,
       height: DEFAULT_SCREEN_HEIGHT,
       areaWidth: MARCHING_AREA_SIZE,
       areaHeight: MARCHING_AREA_SIZE,
     }, useCenter ?? undefined, useDir, interval, distance);
-    setFlight(f);
+    setFlight(f2);
     setScore(0);
     setBoundary(false);
     setCommandStatus([false, false, false, false, false, false, false, false, false]);
