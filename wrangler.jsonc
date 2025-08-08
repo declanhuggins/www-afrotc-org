@@ -16,7 +16,7 @@
 		"NODE_VERSION": "24.5.0"
 	},
 	"assets": {
-		"directory": ".open-next/assets",
+		"directory": "out",
 		"not_found_handling": "404-page"
 	},
 	"observability": {
@@ -38,7 +38,7 @@
 				}
 			],
 			"assets": {
-				"directory": ".open-next/assets",
+				"directory": "out",
 				"not_found_handling": "404-page"
 			}
 		}
