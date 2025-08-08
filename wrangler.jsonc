@@ -3,7 +3,8 @@
 	"name": "afrotc",
 	"compatibility_date": "2025-08-07",
 	"compatibility_flags": [
-		"nodejs_compat"
+		"nodejs_compat",
+		"global_fetch_strictly_public"
 	],
 	"routes": [
 		{
