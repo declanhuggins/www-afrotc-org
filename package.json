@@ -1,42 +1,39 @@
 {
 	"name": "www-afrotc-org",
-	"version": "1.0.0",
+	"version": "2.0.0",
 	"private": true,
 	"scripts": {
-		"dev": "next dev --turbopack",
-		"build": "next build",
-		"start": "next start",
+		"build": "npx @cloudflare/next-on-pages",
+		"cf:typegen": "wrangler types --env-interface CloudflareEnv ./env.d.ts",
+		"deploy": "npm run build && wrangler pages deploy",
+		"dev": "next dev",
 		"lint": "next lint",
-		"pages:build": "npx @cloudflare/next-on-pages",
-		"preview": "npm run pages:build && wrangler pages dev",
-		"deploy": "npm run pages:build && wrangler pages deploy",
-		"cf-typegen": "wrangler types --env-interface CloudflareEnv ./env.d.ts"
+		"preview": "npm run build && wrangler pages dev",
+		"upgrade": "npx npm-check-updates -u && npm install"
 	},
 	"dependencies": {
-		"clsx": "^2.1.1",
 		"geist": "^1.4.2",
-		"next": "15.3.2",
-		"react": "^19.0.0",
-		"react-dom": "^19.0.0"
+		"next": "^15.4.6",
+		"react": "^19.1.1",
+		"react-dom": "^19.1.1"
 	},
 	"devDependencies": {
-		"@cloudflare/next-on-pages": "^1.13.12",
-		"@eslint/eslintrc": "^3",
+		"@cloudflare/next-on-pages": "^1.13.13",
 		"@tailwindcss/postcss": "^4",
-		"@types/node": "^20.17.47",
+		"@types/node": "^24.2.0",
 		"@types/react": "^19",
 		"@types/react-dom": "^19",
 		"eslint": "^9",
-		"eslint-config-next": "15.3.2",
+		"eslint-config-next": "^15.4.6",
+		"npm-check-updates": "^18",
 		"tailwindcss": "^4",
 		"typescript": "^5",
-		"vercel": "^41.7.6",
-		"wrangler": "^4.14.4"
+		"wrangler": "^4.28.1"
 	},
 	"overrides": {
-		"cookie": "0.7.0",
-		"esbuild": "0.25.4",
-		"path-to-regexp": "8.2.0",
-		"undici": "7.9.0"
+		"cookie": "^1.0.2",
+		"esbuild": "^0.25.8",
+		"path-to-regexp": "^8.2.0",
+		"undici": "^7.13.0"
 	}
 }
