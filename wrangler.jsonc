@@ -1,6 +1,6 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "www-afrotc-org",
+	"name": "afrotc",
 	"compatibility_date": "2025-08-07",
 	"compatibility_flags": [
 		"nodejs_compat"
@@ -13,7 +13,7 @@
 	],
 	"env": {
 		"dev": {
-			"name": "dev-afrotc.org",
+			"name": "dev-afrotc-org",
 			"routes": [
 				{
 					"pattern": "dev.afrotc.org",

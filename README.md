@@ -4,4 +4,4 @@ This is a [Cloudflare Workers](https://developers.cloudflare.com/workers/) proje
 
 The code in this repository is licensed under the MIT License. However, references to AFROTC are © 2025 US. Air Force ROTC.
 
-Vectors and icons by [SVG Repo](https://www.svgrepo.com)".
+Vectors and icons by [SVG Repo](https://www.svgrepo.com).
