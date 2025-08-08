@@ -6,6 +6,9 @@
 		"nodejs_compat",
 		"global_fetch_strictly_public"
 	],
+	"env": {
+		"dev": {}
+	},
 	"routes": [
 		{
 			"pattern": "www.afrotc.org",
