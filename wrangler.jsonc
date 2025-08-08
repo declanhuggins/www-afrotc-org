@@ -6,9 +6,7 @@
 		"nodejs_compat",
 		"global_fetch_strictly_public"
 	],
-	"env": {
-		"dev": {}
-	},
+	"workers_dev": true,
 	"routes": [
 		{
 			"pattern": "www.afrotc.org",
@@ -27,5 +25,19 @@
 	},
 	"dev": {
 		"port": 3000
+	},
+	"env": {
+		"dev": {
+			"name": "dev-afrotc",
+			"vars": {
+				"NODE_VERSION": "24.5.0"
+			},
+			"routes": [
+				{
+					"pattern": "dev.afrotc.org",
+					"custom_domain": true
+				}
+			]
+		}
 	}
 }
