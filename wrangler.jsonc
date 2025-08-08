@@ -8,7 +8,7 @@
 	],
 	"routes": [
 		{
-			"pattern": "www.afrotc.org/*",
+			"pattern": "www.afrotc.org",
 			"custom_domain": true
 		}
 	],
@@ -27,13 +27,13 @@
 	},
 	"env": {
 		"dev": {
-			"name": "dev-afrotc-org",
+			"name": "afrotc",
 			"vars": {
 				"NODE_VERSION": "24.5.0"
 			},
 			"routes": [
 				{
-					"pattern": "dev.afrotc.org/*",
+					"pattern": "dev.afrotc.org",
 					"custom_domain": true
 				}
 			],
