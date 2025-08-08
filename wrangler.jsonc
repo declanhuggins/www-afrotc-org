@@ -5,6 +5,23 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
+	"routes": [
+		{
+			"pattern": "afrotc.org",
+			"custom_domain": true
+		}
+	],
+	"env": {
+		"dev": {
+			"name": "dev-afrotc.org",
+			"routes": [
+				{
+					"pattern": "dev.afrotc.org",
+					"custom_domain": true
+				}
+			]
+		}
+	},
 	"vars": {
 		"NODE_VERSION": "24.5.0"
 	},
