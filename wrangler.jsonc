@@ -1,12 +1,12 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "www-afrotc-org",
-	"compatibility_date": "2025-05-14",
+	"compatibility_date": "2025-08-07",
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
 	"vars": {
-		"NODE_VERSION": "23.11.0"
+		"NODE_VERSION": "24.5.0"
 	},
 	"pages_build_output_dir": ".vercel/output/static",
 	"observability": {

@@ -3,12 +3,13 @@
 	"version": "2.0.0",
 	"private": true,
 	"scripts": {
-		"build": "npx @cloudflare/next-on-pages",
-		"cf:typegen": "wrangler types --env-interface CloudflareEnv ./env.d.ts",
-		"deploy": "npm run build && wrangler pages deploy",
 		"dev": "next dev",
 		"lint": "next lint",
-		"preview": "npm run build && wrangler pages dev",
+		"build": "next build",
+		"build:pages": "npx @cloudflare/next-on-pages",
+		"preview": "npm run build:pages && wrangler pages dev",
+		"deploy": "npm run build:pages && wrangler pages deploy",
+		"cf:typegen": "wrangler types --env-interface CloudflareEnv ./env.d.ts",
 		"upgrade": "npx npm-check-updates -u && npm install"
 	},
 	"dependencies": {
@@ -28,10 +29,11 @@
 		"npm-check-updates": "^18",
 		"tailwindcss": "^4",
 		"typescript": "^5",
+		"vercel": "^44.7.3",
 		"wrangler": "^4.28.1"
 	},
 	"overrides": {
-		"cookie": "^1.0.2",
+		"cookie": "^0.7.2",
 		"esbuild": "^0.25.8",
 		"path-to-regexp": "^8.2.0",
 		"undici": "^7.13.0"
