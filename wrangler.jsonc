@@ -8,11 +8,14 @@
 	"vars": {
 		"NODE_VERSION": "24.5.0"
 	},
-	"pages_build_output_dir": ".vercel/output/static",
+	"assets": {
+		"directory": "./out",
+		"not_found_handling": "404-page"
+	},
 	"observability": {
 		"enabled": true
 	},
 	"dev": {
-		"port": 3000,
+		"port": 3000
 	}
 }
