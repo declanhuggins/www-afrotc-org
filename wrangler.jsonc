@@ -6,6 +6,7 @@
 		"nodejs_compat",
 		"global_fetch_strictly_public"
 	],
+	"workers_dev": true,
 	"routes": [
 		{
 			"pattern": "www.afrotc.org",
@@ -16,7 +17,7 @@
 		"NODE_VERSION": "24.5.0"
 	},
 	"assets": {
-		"directory": ".open-next/assets",
+		"directory": "./.open-next/assets",
 		"not_found_handling": "404-page"
 	},
 	"observability": {
@@ -27,7 +28,7 @@
 	},
 	"env": {
 		"dev": {
-			"name": "afrotc",
+			"name": "dev-afrotc",
 			"vars": {
 				"NODE_VERSION": "24.5.0"
 			},
@@ -36,11 +37,7 @@
 					"pattern": "dev.afrotc.org",
 					"custom_domain": true
 				}
-			],
-			"assets": {
-				"directory": ".open-next/assets",
-				"not_found_handling": "404-page"
-			}
+			]
 		}
 	}
 }
