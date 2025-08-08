@@ -16,7 +16,7 @@
 		"NODE_VERSION": "24.5.0"
 	},
 	"assets": {
-		"directory": "out",
+		"directory": "./out/",
 		"not_found_handling": "404-page"
 	},
 	"observability": {
@@ -24,23 +24,5 @@
 	},
 	"dev": {
 		"port": 3000
-	},
-	"env": {
-		"dev": {
-			"name": "afrotc",
-			"vars": {
-				"NODE_VERSION": "24.5.0"
-			},
-			"routes": [
-				{
-					"pattern": "dev.afrotc.org",
-					"custom_domain": true
-				}
-			],
-			"assets": {
-				"directory": "out",
-				"not_found_handling": "404-page"
-			}
-		}
 	}
 }
