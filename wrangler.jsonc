@@ -1,18 +1,38 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "www-afrotc-org",
-	"compatibility_date": "2025-05-14",
+	"compatibility_date": "2025-08-07",
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
-	"vars": {
-		"NODE_VERSION": "23.11.0"
+	"routes": [
+		{
+			"pattern": "afrotc.org",
+			"custom_domain": true
+		}
+	],
+	"env": {
+		"dev": {
+			"name": "dev-afrotc.org",
+			"routes": [
+				{
+					"pattern": "dev.afrotc.org",
+					"custom_domain": true
+				}
+			]
+		}
 	},
-	"pages_build_output_dir": ".vercel/output/static",
+	"vars": {
+		"NODE_VERSION": "24.5.0"
+	},
+	"assets": {
+		"directory": "./out",
+		"not_found_handling": "404-page"
+	},
 	"observability": {
 		"enabled": true
 	},
 	"dev": {
-		"port": 3000,
+		"port": 3000
 	}
 }

@@ -1,11 +1,11 @@
-import { setupDevPlatform } from '@cloudflare/next-on-pages/next-dev';
-
-setupDevPlatform().catch(console.error);
-
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  devIndicators: false
+  devIndicators: false,
+  output: 'standalone'
 };
 
 export default nextConfig;
+
+import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare';
+initOpenNextCloudflareForDev();
