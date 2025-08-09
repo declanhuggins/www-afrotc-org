@@ -16,7 +16,9 @@ Implement a production-ready Marching Simulator according to the PDF spec, deliv
 4) Documentation, tests (at least unit tests for the engine), and traceability from requirements.
 
 ## Inputs & Artifacts to Produce
-- Input: `docs/spec/marching-simulator-spec.pdf` (24 pages).
+- Input: 
+  - `docs/spec/marching-simulator-spec.pdf`: 29 pages.
+  - `docs/spec/marching-simulator-spec.md`: Markdown version of the 29 page PDF.
 - Produce the following artifacts in this repo:
   - `docs/ai/analysis/requirements.md`: Structured requirements extracted from the PDF with IDs (REQ-###).
   - `docs/ai/analysis/glossary.md`: Domain terms and definitions.

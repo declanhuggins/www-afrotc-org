@@ -3,7 +3,8 @@
 Place the official 24-page PDF here as `marching-simulator-spec.pdf`.
 
 Optional helpers:
-- `spec.txt` – extracted text.
+- `marching-simulator-spec.md` – extracted text.
+- `dafpam34-1203.pdf` – original Air Force specifications.
 
 Guidelines:
 - Keep the original PDF unchanged.
