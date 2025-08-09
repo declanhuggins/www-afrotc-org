@@ -2,11 +2,13 @@
 	"name": "www-afrotc-org",
 	"version": "2.0.2",
 	"private": true,
+	"type": "module",
 	"scripts": {
 		"dev": "next dev --turbopack",
 		"build": "next build",
 		"start": "next start",
 		"lint": "next lint",
+		"test": "vitest run",
 		"preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
 		"deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
 		"upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
@@ -33,6 +35,7 @@
 		"npm-check-updates": "^18.0.2",
 		"tailwindcss": "^4",
 		"typescript": "^5",
+		"vitest": "^2.1.9",
 		"wrangler": "^4.28.1"
 	}
 }

@@ -75,7 +75,7 @@ Implement a production-ready Marching Simulator according to the PDF spec, deliv
 - Preview on Cloudflare locally: `npm run preview`
 
 ## Spec Processing (Optional Helper)
-If the PDF needs text extraction, you can generate `docs/spec/spec.txt` or `docs/spec/spec.md` using your preferred tooling. See `docs/spec/README.md` for suggestions. Keep derived artifacts in `docs/spec/` and cite page numbers.
+If the PDF needs text extraction, you can use `docs/spec/marching-simulator-spec.md`. See `docs/spec/README.md` for suggestions. Keep derived artifacts in `docs/spec/` and cite page numbers.
 
 ## Review Checklist
 - Do requirements map to code/tests via `traceability.md`?
