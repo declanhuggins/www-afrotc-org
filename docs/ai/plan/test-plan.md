@@ -11,6 +11,17 @@ Covers the engine (pure logic), parser/validator, orchestrator/timing, and minim
 - **Integration tests (orchestrator)** — cadence/half‑step restoration and timeline stepping.
 - **UI tests (minimal)** — command entry, pending/execution behavior, focus/labels; smoke coverage.
 
+### Current automated coverage (Dec 2025)
+- **Engine reducer**: facing, flanks, column half-turns, forward/halt, guide toggles, interval-at-halt gating, and determinism checked in [tests/reducer.test.ts](../../tests/reducer.test.ts#L7-L128).
+- **Parser**: tolerant mappings for core commands (incl. FALL IN with element count) in [tests/reducer.test.ts](../../tests/reducer.test.ts#L69-L103).
+- **Orchestrator**: cadence stepping, halt sequencing, moving-turn sequences, guidon repositioning during faces, fall-in ordering, and march timing in [tests/orchestrator.test.ts](../../tests/orchestrator.test.ts#L6-L163).
+- **Geometry**: formation ordering smoke coverage via orchestrator test [tests/orchestrator.test.ts](../../tests/orchestrator.test.ts#L128-L149).
+
+### Known gaps
+- No coverage yet for interval changes on the move, column of files, twos/fours transitions, rank spacing for Open/Close Ranks, or Count Off.
+- Spacing enforcement uses 30" cover / 35" interval constants; spec calls for 40" cover / ~30" interval — needs alignment or rationale plus tests.
+- Parser/validator lacks preparatory/execution buffering and `As You Were`; no ambiguity handling tests.
+
 Target coverage: **≥ 90%** lines/branches for `engine`, `validator`, and `geometry`; **≥ 80%** for `parser`.
 
 ## 2) Engine Tests
