@@ -5,8 +5,8 @@
 	"scripts": {
 		"dev": "next dev --turbopack",
 		"build": "npx wrangler types --env-interface CloudflareEnv ./env.d.ts && next build",
-		"build:prod": "npx @cloudflare/next-on-pages && npx wrangler build --env prod",
-		"build:dev": "npx @cloudflare/next-on-pages && npx wrangler build --env dev",
+		"build:prod": "npx @cloudflare/next-on-pages && npm run assets:ignore && npx wrangler build --env prod",
+		"build:dev": "npx @cloudflare/next-on-pages && npm run assets:ignore && npx wrangler build --env dev",
 		"start": "next start",
 		"lint": "next lint",
 		"test": "vitest run",
@@ -17,7 +17,8 @@
 		"deploy:dev": "npm run build:dev && npx wrangler deploy -e dev",
 		"upload:dev": "npm run build:dev && npx wrangler upload -e dev",
 		"cf-typegen": "npx wrangler types --env-interface CloudflareEnv ./env.d.ts",
-		"upgrade": "npx npm-check-updates -u && npm install"
+		"assets:ignore": "mkdir -p .vercel/output/static && printf '_worker.js\n' > .vercel/output/static/.assetsignore",
+				"upgrade": "npx npm-check-updates -u && npm install"
 	},
 	"dependencies": {
 		"@opennextjs/cloudflare": "^1.14.6",
