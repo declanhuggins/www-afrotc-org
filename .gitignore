@@ -34,9 +34,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-# OpenNext
-/.open-next
+env.d.ts
 
 # wrangler files
 .wrangler
@@ -44,3 +42,9 @@ next-env.d.ts
 !.dev.vars.example
 .env*
 !.env.example
+
+# dist
+/dist
+
+# vscode
+.vscode/

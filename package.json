@@ -1,41 +1,42 @@
 {
 	"name": "www-afrotc-org",
-	"version": "2.0.2",
+	"version": "2.1.0",
 	"private": true,
-	"type": "module",
 	"scripts": {
 		"dev": "next dev --turbopack",
-		"build": "next build",
+		"build": "npx wrangler types --env-interface CloudflareEnv ./env.d.ts && next build",
+		"build:prod": "npx @cloudflare/next-on-pages && npx wrangler build --env prod",
+		"build:dev": "npx @cloudflare/next-on-pages && npx wrangler build --env dev",
 		"start": "next start",
 		"lint": "next lint",
 		"test": "vitest run",
-		"preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-		"deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-		"upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
-		"preview:dev": "opennextjs-cloudflare build && opennextjs-cloudflare preview -- --env=dev",
-		"deploy:dev": "opennextjs-cloudflare build && opennextjs-cloudflare deploy -- --env=dev",
-		"upload:dev": "opennextjs-cloudflare build && opennextjs-cloudflare upload -- --env=dev",
-		"cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
+		"preview": "npm run build:prod && npx wrangler dev -e prod",
+		"deploy": "npm run build:prod && npx wrangler deploy -e prod",
+		"upload": "npm run build:prod && npx wrangler upload -e prod",
+		"preview:dev": "npm run build:dev && npx wrangler dev --env dev",
+		"deploy:dev": "npm run build:dev && npx wrangler deploy -e dev",
+		"upload:dev": "npm run build:dev && npx wrangler upload -e dev",
+		"cf-typegen": "npx wrangler types --env-interface CloudflareEnv ./env.d.ts",
 		"upgrade": "npx npm-check-updates -u && npm install"
 	},
 	"dependencies": {
-		"@opennextjs/cloudflare": "^1.6.5",
-		"next": "15.4.6",
-		"react": "^19.1.1",
-		"react-dom": "^19.1.1"
+		"@opennextjs/cloudflare": "^1.14.6",
+		"next": "16.0.10",
+		"react": "^19.2.3",
+		"react-dom": "^19.2.3"
 	},
 	"devDependencies": {
 		"@eslint/eslintrc": "^3",
 		"@tailwindcss/postcss": "^4",
-		"@types/node": "^24.2.1",
+		"@types/node": "^25.0.1",
 		"@types/react": "^19",
 		"@types/react-dom": "^19",
 		"eslint": "^9",
-		"eslint-config-next": "^15.4.6",
-		"npm-check-updates": "^18.0.2",
+		"eslint-config-next": "^16.0.10",
+		"npm-check-updates": "^19.2.0",
 		"tailwindcss": "^4",
 		"typescript": "^5",
-		"vitest": "^2.1.9",
-		"wrangler": "^4.28.1"
+		"vitest": "^4.0.15",
+		"wrangler": "^4.54.0"
 	}
 }

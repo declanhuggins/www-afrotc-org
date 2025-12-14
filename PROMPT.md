@@ -3,7 +3,7 @@
 You are an AI engineer tasked with implementing a “Marching Simulator” feature for this Next.js + Cloudflare Workers app using the attached 24-page PDF specification.
 
 ## Context
-- Stack: Next.js 15 (App Router) + React 19, deployed via `@opennextjs/cloudflare` to Cloudflare Workers.
+- Stack: Next.js 15 (App Router) + React 19, deployed via `npm run deploy` to Cloudflare Workers.
 - Runtime constraints: Cloudflare Workers (browser-compatible APIs; avoid Node-only modules like fs, net, child_process).
 - Source structure: App Router in `app/`, static assets in `public/`, config in project root.
 - Spec location: Place the PDF at `docs/spec/marching-simulator-spec.pdf` (or update the path below).

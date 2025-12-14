@@ -39,6 +39,7 @@ export interface SimulatorState {
 
 export type CommandKind =
   | 'FALL_IN'
+  | 'ROTATE_FALL_IN'
   | 'FORWARD_MARCH'
   | 'HALT'
   | 'LEFT_FACE'
@@ -81,8 +82,8 @@ export interface ReduceResult {
 }
 
 export const DEFAULT_SPACING: SpacingInches = {
-  coverIn: 40,
-  intervalNormalIn: 30,
+  coverIn: 30,
+  intervalNormalIn: 35,
   intervalCloseIn: 4,
 };
 
@@ -101,8 +102,8 @@ export function createInitialState(partial?: Partial<SimulatorState>): Simulator
     interval: 'normal',
     headingDeg: 0,
     motion: 'halted',
-    guideSide: 'right',
-  composition: { elementCount: 3, rankCount: 4 },
+    guideSide: 'left',
+    composition: { elementCount: 3, rankCount: 4 },
     cadenceSpm: DEFAULT_CADENCE_SPM,
     stepLenIn: DEFAULT_STEP_LEN_IN,
     spacing: DEFAULT_SPACING,
@@ -111,4 +112,17 @@ export function createInitialState(partial?: Partial<SimulatorState>): Simulator
   const merged = { ...base, ...partial } as SimulatorState;
   merged.headingDeg = normalizeHeading(merged.headingDeg);
   return merged;
+}
+
+// Cadet-level simulation types (pure data; used by geometry/orchestrator)
+export type CadetRole = 'cadet' | 'guide' | 'guidon-bearer';
+
+export interface Cadet {
+  id: string;
+  role: CadetRole;
+  rank: number;
+  file: number;
+  headingDeg: number;
+  x: number; // inches, world coords
+  y: number; // inches, world coords
 }

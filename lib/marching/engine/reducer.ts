@@ -20,11 +20,18 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
       s.formationType = 'line';
       s.motion = 'halted';
       s.interval = 'normal';
-      s.guideSide = 'right';
+      s.guideSide = 'left';
+      s.headingDeg = 0;
       if (command.params?.elements != null) {
         const e = Math.max(1, Math.min(4, Math.floor(command.params.elements)));
         s.composition = { ...s.composition, elementCount: e };
       }
+      return { next: s };
+    }
+    case 'ROTATE_FALL_IN': {
+      const err = requireHalted(s);
+      if (err) return noOp(s, err);
+      s.headingDeg = normalizeHeading(s.headingDeg + 90);
       return { next: s };
     }
     case 'NO_OP':
@@ -46,6 +53,10 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
       const err = requireHalted(s);
       if (err) return noOp(s, err);
       s.headingDeg = normalizeHeading(s.headingDeg - 90);
+      if (s.formationType === 'line') s.formationType = 'inverted-column';
+      else if (s.formationType === 'column') s.formationType = 'line';
+      else if (s.formationType === 'inverted-column') s.formationType = 'inverted-line';
+      else if (s.formationType === 'inverted-line') s.formationType = 'column';
       return { next: s };
     }
 
@@ -53,6 +64,10 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
       const err = requireHalted(s);
       if (err) return noOp(s, err);
       s.headingDeg = normalizeHeading(s.headingDeg + 90);
+      if (s.formationType === 'line') s.formationType = 'column';
+      else if (s.formationType === 'column') s.formationType = 'inverted-line';
+      else if (s.formationType === 'inverted-column') s.formationType = 'line';
+      else if (s.formationType === 'inverted-line') s.formationType = 'inverted-column';
       return { next: s };
     }
 
@@ -60,6 +75,10 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
       const err = requireHalted(s);
       if (err) return noOp(s, err);
       s.headingDeg = normalizeHeading(s.headingDeg + 180);
+      if (s.formationType === 'line') s.formationType = 'inverted-line';
+      else if (s.formationType === 'inverted-line') s.formationType = 'line';
+      else if (s.formationType === 'column') s.formationType = 'inverted-column';
+      else if (s.formationType === 'inverted-column') s.formationType = 'column';
       return { next: s };
     }
 

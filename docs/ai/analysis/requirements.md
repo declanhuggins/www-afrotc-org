@@ -64,6 +64,7 @@ _This document lists functional and non-functional requirements derived from the
   - Acceptance criteria:
     - After facing, guide and commander adjust positions per base/guide side rules.
     - Dress is maintained toward the base element.
+    - Guidon choreography: all cadets pivot in place; when transitioning line→column (or inverted-column→line), the guidon alone executes an extra right face, marches to the target front-rank base file of the new formation, then faces back—no other cadet positions are altered by faces.
   - Notes/assumptions:
     - About Face reverses orientation but keeps formation geometry.
 

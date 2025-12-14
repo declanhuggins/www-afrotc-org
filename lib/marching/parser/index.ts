@@ -33,6 +33,10 @@ export function parseCommand(input: string): Command | ParseError {
     return { kind: 'FALL_IN', params };
   }
 
+  if (/^rotate\s*fall\s*-?\s*in$/i.test(cleaned)) {
+    return { kind: 'ROTATE_FALL_IN' };
+  }
+
   // Forward, MARCH
   if (/^(?:forward\s*)?march$/.test(lower) || /^forward\s*march$/.test(lower)) {
     return { kind: 'FORWARD_MARCH' };

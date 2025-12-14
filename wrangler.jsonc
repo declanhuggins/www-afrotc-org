@@ -1,25 +1,16 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "afrotc",
-	"main": "./.open-next/worker.js",
-	"compatibility_date": "2025-08-07",
+	"compatibility_date": "2025-09-19",
 	"compatibility_flags": [
-		"nodejs_compat",
-		"global_fetch_strictly_public"
+		"nodejs_compat"
 	],
 	"workers_dev": true,
-	"routes": [
-		{
-			"pattern": "www.afrotc.org",
-			"custom_domain": true
-		}
-	],
-	"vars": {
-		"NODE_VERSION": "24.5.0"
-	},
+	"main": ".vercel/output/static/_worker.js",
 	"assets": {
-		"directory": "./.open-next/assets",
-		"not_found_handling": "404-page"
+		"directory": ".vercel/output/static",
+		"not_found_handling": "404-page",
+		"binding": "ASSETS"
 	},
 	"observability": {
 		"enabled": true
@@ -27,11 +18,32 @@
 	"dev": {
 		"port": 3000
 	},
+	"routes": [
+		{
+			"pattern": "www.afrotc.org",
+			"custom_domain": true
+		}
+	],
+	"vars": {
+		"NODE_VERSION": "24.8.0"
+	},
 	"env": {
+		"prod": {
+			"name": "afrotc",
+			"vars": {
+				"NODE_VERSION": "24.8.0"
+			},
+			"routes": [
+				{
+					"pattern": "www.afrotc.org",
+					"custom_domain": true
+				}
+			]
+		},
 		"dev": {
 			"name": "dev-afrotc",
 			"vars": {
-				"NODE_VERSION": "24.5.0"
+				"NODE_VERSION": "24.8.0"
 			},
 			"routes": [
 				{
