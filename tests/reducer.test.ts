@@ -84,6 +84,24 @@ describe('engine reducer', () => {
     expect(r.next.formationType).toBe('line');
   });
 
+  it('parser: core commands map to reducer kinds', () => {
+    const cases: Array<[string, Command['kind']]> = [
+      ['Forward, MARCH', 'FORWARD_MARCH'],
+      ['HALT', 'HALT'],
+      ['Left Face', 'LEFT_FACE'],
+      ['Right Flank', 'RIGHT_FLANK'],
+      ['To the Rear, MARCH', 'TO_THE_REAR'],
+      ['Column Half Right', 'COLUMN_HALF_RIGHT'],
+      ['Guide Left', 'GUIDE_LEFT'],
+      ['Open Ranks', 'OPEN_RANKS'],
+    ];
+    for (const [text, kind] of cases) {
+      const cmd = parseCommand(text);
+      if ('error' in (cmd as any)) throw new Error(`parse failed for ${text}`);
+      expect((cmd as Command).kind).toBe(kind);
+    }
+  });
+
   it('At Close Interval, Dress Right, DRESS only at halt', () => {
     const halted = createInitialState({ motion: 'halted', interval: 'normal' });
     const r = reduce(halted, { kind: 'AT_CLOSE_INTERVAL_DRESS_RIGHT_DRESS' });

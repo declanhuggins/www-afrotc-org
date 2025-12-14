@@ -98,6 +98,11 @@ This plan turns the requirements in `requirements.md` into a concrete, testable 
   - Rate‑limit heavy endpoints and push heavy ops to client.
   - Use deterministic engine on server as well (same tests run in CI).
 
+  ## Current status (Dec 2025)
+  - **Implemented:** core reducer for faces/flanks/columns/rear/counter, forward/halt; parser for core commands; geometry grid; orchestrator with cadence stepping, halt sequencing, moving-turn actions, and guidon repositioning during facing transitions.
+  - **Partially implemented:** spacing constants differ from spec (30" cover / 35" interval), no dress/cover enforcement; column/flank/rear/counter maneuvers are heading-only (no staggered file pivots or recovery distances); Open/Close Ranks gated but do not move ranks; parser lacks preparatory buffer/`As You Were`.
+  - **Not implemented:** interval changes on the move, column of files, expand/reform twos/fours, Count Off, persistence/sharing flows, validator layer, accessibility/UI tests, performance budgets.
+
 ## 5) Milestones & Acceptance
 
 **M0 — Project skeleton**
