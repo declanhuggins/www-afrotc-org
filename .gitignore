@@ -48,3 +48,4 @@ env.d.ts
 
 # vscode
 .vscode/
+.eslintrc.cjs

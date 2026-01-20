@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useReducer, useState } from 'react';
+import { useMemo, useReducer, useState, type FormEvent } from 'react';
 import { createInitialState, reduce, type Command } from '../../lib/marching';
 import { parseCommand } from '../../lib/marching';
 
@@ -16,7 +16,7 @@ export default function SimulatorClient() {
 
   const pretty = useMemo(() => JSON.stringify(state, null, 2), [state]);
 
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     const parsed = parseCommand(input);

@@ -1,4 +1,11 @@
-import { Command, ReduceResult, SimulatorState, normalizeHeading } from "../types";
+import {
+  Command,
+  FormationType,
+  PendingGuidonShift,
+  ReduceResult,
+  SimulatorState,
+  normalizeHeading,
+} from "../types";
 
 function noOp(state: SimulatorState, reason?: string): ReduceResult {
   return { next: state, error: reason };
@@ -12,6 +19,37 @@ function requireMarching(state: SimulatorState): string | null {
   return state.motion === 'marching' ? null : 'Command only valid while marching';
 }
 
+function nextFormationForRight(formation: FormationType): FormationType {
+  if (formation === 'line') return 'column';
+  if (formation === 'column') return 'inverted-line';
+  if (formation === 'inverted-line') return 'inverted-column';
+  return 'line';
+}
+
+function nextFormationForLeft(formation: FormationType): FormationType {
+  if (formation === 'line') return 'inverted-column';
+  if (formation === 'column') return 'line';
+  if (formation === 'inverted-line') return 'column';
+  return 'inverted-line';
+}
+
+function buildFlankGuidonShift(
+  prevFormation: FormationType,
+  files: number,
+  guideSide: SimulatorState['guideSide'],
+  direction: 'left' | 'right'
+): PendingGuidonShift | null {
+  if (files <= 1) return null;
+  const targetFile = guideSide === 'left' ? Math.max(0, files - 1) : 0;
+  let mode: PendingGuidonShift['mode'];
+  if (direction === 'right') {
+    mode = prevFormation === 'column' ? 'straight' : 'pivot-right';
+  } else {
+    mode = prevFormation === 'inverted-column' ? 'straight' : 'pivot-left';
+  }
+  return { mode, targetFile };
+}
+
 export function reduce(state: SimulatorState, command: Command): ReduceResult {
   const s = { ...state };
   switch (command.kind) {
@@ -22,6 +60,7 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
       s.interval = 'normal';
       s.guideSide = 'left';
       s.headingDeg = 0;
+      s.pendingGuidonShift = null;
       if (command.params?.elements != null) {
         const e = Math.max(1, Math.min(4, Math.floor(command.params.elements)));
         s.composition = { ...s.composition, elementCount: e };
@@ -32,6 +71,7 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
       const err = requireHalted(s);
       if (err) return noOp(s, err);
       s.headingDeg = normalizeHeading(s.headingDeg + 90);
+      s.pendingGuidonShift = null;
       return { next: s };
     }
     case 'NO_OP':
@@ -46,6 +86,7 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
     case 'HALT': {
       if (s.motion === 'halted') return noOp(s, 'Already halted');
       s.motion = 'halted';
+      s.pendingGuidonShift = null;
       return { next: s, effects: { animationHints: { snapAlignOnHalt: true } } };
     }
 
@@ -57,6 +98,7 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
       else if (s.formationType === 'column') s.formationType = 'line';
       else if (s.formationType === 'inverted-column') s.formationType = 'inverted-line';
       else if (s.formationType === 'inverted-line') s.formationType = 'column';
+      s.pendingGuidonShift = null;
       return { next: s };
     }
 
@@ -68,6 +110,7 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
       else if (s.formationType === 'column') s.formationType = 'inverted-line';
       else if (s.formationType === 'inverted-column') s.formationType = 'line';
       else if (s.formationType === 'inverted-line') s.formationType = 'inverted-column';
+      s.pendingGuidonShift = null;
       return { next: s };
     }
 
@@ -79,20 +122,41 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
       else if (s.formationType === 'inverted-line') s.formationType = 'line';
       else if (s.formationType === 'column') s.formationType = 'inverted-column';
       else if (s.formationType === 'inverted-column') s.formationType = 'column';
+      s.pendingGuidonShift = null;
       return { next: s };
     }
 
     case 'RIGHT_FLANK': {
-      const err = requireMarching(s);
-      if (err) return noOp(s, err);
+      if (s.motion === 'halted') {
+        s.motion = 'marching';
+      }
+      const prevFormation = s.formationType;
       s.headingDeg = normalizeHeading(s.headingDeg + 90);
+      const nextFormation = nextFormationForRight(s.formationType);
+      s.formationType = nextFormation;
+      s.pendingGuidonShift = buildFlankGuidonShift(
+        prevFormation,
+        s.composition.elementCount,
+        s.guideSide,
+        'right'
+      );
       return { next: s };
     }
 
     case 'LEFT_FLANK': {
-      const err = requireMarching(s);
-      if (err) return noOp(s, err);
+      if (s.motion === 'halted') {
+        s.motion = 'marching';
+      }
+      const prevFormation = s.formationType;
       s.headingDeg = normalizeHeading(s.headingDeg - 90);
+      const nextFormation = nextFormationForLeft(s.formationType);
+      s.formationType = nextFormation;
+      s.pendingGuidonShift = buildFlankGuidonShift(
+        prevFormation,
+        s.composition.elementCount,
+        s.guideSide,
+        'left'
+      );
       return { next: s };
     }
 

@@ -82,3 +82,41 @@ If the PDF needs text extraction, you can use `docs/spec/marching-simulator-spec
 - Are engine APIs documented and stable?
 - Are performance and accessibility considerations addressed?
 - Do build and lint pass? Any worker-incompatible dependencies?
+
+---
+
+# Pull Request Automation (Dev → Main)
+
+When the user says **“execute a full pull request from <source> -> <target>”** (for example: **dev -> main**), treat it as a request to complete the repo’s PR checklist end-to-end.
+
+## Required Workflow
+1) **Confirm there is a diff to review**
+   - Run: `git status`
+   - Run: `git diff --stat <target>...<source>` (or `<target>...HEAD` if already on `<source>`)
+   - If there are no changes/diff is empty, stop and ask which workspace/branch contains the edits.
+
+2) **Review against repo rules**
+   - Locate and follow the repo PR checklist and templates (e.g., `.github/PULL_REQUEST_TEMPLATE*`, `CONTRIBUTING.md`, `docs/ai/*`).
+   - Identify missing checklist items and propose concrete fixes.
+
+3) **Update required docs (if checklist requires)**
+   - Keep `docs/ai/analysis/requirements.md`, `docs/ai/plan/implementation-plan.md`, `docs/ai/plan/test-plan.md`, and `docs/ai/tracing/traceability.md` in sync with the change.
+   - Update `docs/ai/CHANGELOG.md` for the PR.
+
+4) **Quality gates (run and report results)**
+   - Run: `npm test`
+   - Run: `npm run lint`
+   - Run: `npm run build`
+   - If any fail: fix, re-run until green.
+
+5) **Commit hygiene**
+   - Call out and confirm any non-obvious files before including them (e.g., editor workspace files, generated artifacts, lockfile churn).
+   - Ensure commits are on `<source>` and pushed.
+
+6) **Prepare the PR (dev -> main)**
+   - Create or update a PR from `<source>` to `<target>`.
+   - Generate a PR title and body that follow the repo template.
+   - Include a checklist section with ✅/❌ and list the commands run with outcomes.
+
+## Minimal One-Liner Shortcut
+If the user says only: **“full PR dev -> main”**, interpret it as executing the full workflow above.
