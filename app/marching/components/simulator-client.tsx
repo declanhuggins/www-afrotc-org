@@ -147,18 +147,6 @@ const KEY_COMMANDS: Record<string, Command> = {
   spacebar: { kind: 'HALT' },
 };
 
-const KEYBIND_HELP: Array<{ key: string; label: string }> = [
-  { key: 'W', label: 'Forward, MARCH' },
-  { key: 'SPACE', label: 'HALT' },
-  { key: 'A', label: 'Left Face' },
-  { key: 'D', label: 'Right Face' },
-  { key: 'Q', label: 'Left Flank' },
-  { key: 'E', label: 'Right Flank' },
-  { key: 'S', label: 'About Face' },
-  { key: 'F', label: 'FALL-IN (click to place)' },
-  { key: 'R', label: 'ROTATE FALL-IN (preview)' },
-];
-
 const EMPTY_DESCRIPTOR: CommandDescriptor = {
   label: 'None',
   preparatory: 'None',

@@ -75,7 +75,7 @@ _This document lists functional and non-functional requirements derived from the
     - On stepping off, maintain cadence and spacing.
     - On HALT, alignment (dress/cover) is exact at specified distances.
   - Notes/assumptions:
-    - HALT may complete current footfall before stopping visually.
+    - HALT may complete current footfall before stopping visually; the "stop" beat may be modeled as an in-place step.
 
 - REQ-009 [High] Column movements while marching
   - Description: Column Right/Left (and Half Right/Left) pivot the formation around the base file with delayed pivots for other files; resume full steps after alignment.
@@ -92,6 +92,7 @@ _This document lists functional and non-functional requirements derived from the
   - Acceptance criteria:
     - All members pivot on correct foot; relative positions within formation are preserved.
     - Guide remains on same relative flank; adjust only if halted out of place.
+    - If a flank is called on the wrong foot, the preparatory is delayed until the next beat and then executed on the correct foot.
   - Notes/assumptions:
     - Used primarily for repositioning; not typical for long-distance marching.
 
