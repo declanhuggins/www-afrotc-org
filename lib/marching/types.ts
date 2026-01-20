@@ -4,6 +4,12 @@ export type FormationType = 'line' | 'column' | 'inverted-line' | 'inverted-colu
 export type Interval = 'normal' | 'close';
 export type Motion = 'halted' | 'marching';
 export type GuideSide = 'left' | 'right';
+export type GuidonShiftMode = 'pivot-right' | 'pivot-left' | 'straight';
+
+export interface PendingGuidonShift {
+  mode: GuidonShiftMode;
+  targetFile: number;
+}
 
 export interface SpacingInches {
   coverIn: number; // front-to-back distance
@@ -30,6 +36,7 @@ export interface SimulatorState {
   headingDeg: number; // 0..359
   motion: Motion;
   guideSide: GuideSide;
+  pendingGuidonShift?: PendingGuidonShift | null;
   composition: FlightComposition;
   cadenceSpm: number; // steps per minute
   stepLenIn: number; // inches per step
@@ -103,6 +110,7 @@ export function createInitialState(partial?: Partial<SimulatorState>): Simulator
     headingDeg: 0,
     motion: 'halted',
     guideSide: 'left',
+    pendingGuidonShift: null,
     composition: { elementCount: 3, rankCount: 4 },
     cadenceSpm: DEFAULT_CADENCE_SPM,
     stepLenIn: DEFAULT_STEP_LEN_IN,

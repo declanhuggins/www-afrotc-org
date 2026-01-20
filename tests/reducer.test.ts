@@ -23,15 +23,19 @@ describe('engine reducer', () => {
     expect(rFace2.next.headingDeg).toBe(0);
   });
 
-  it('Flanks require marching', () => {
+  it('Flanks start marching when halted', () => {
     const s0 = createInitialState({ motion: 'halted', headingDeg: 0 });
     const r0 = reduce(s0, { kind: 'RIGHT_FLANK' });
-    expect(r0.error).toBeTruthy();
+    expect(r0.error).toBeFalsy();
+    expect(r0.next.motion).toBe('marching');
+    expect(r0.next.headingDeg).toBe(90);
 
     const s1 = createInitialState({ motion: 'marching', headingDeg: 0 });
     const r1 = reduce(s1, { kind: 'LEFT_FLANK' });
     expect(r1.error).toBeFalsy();
     expect(r1.next.headingDeg).toBe(270);
+    expect(r1.next.formationType).toBe('inverted-column');
+    expect(r1.next.pendingGuidonShift?.mode).toBe('pivot-left');
   });
 
   it('To the Rear while marching rotates 180', () => {
@@ -125,5 +129,19 @@ describe('engine reducer', () => {
     const a = run();
     const b = run();
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+
+  it('Flanks update formation and set guidon shift for later halt', () => {
+    const s0 = createInitialState({ motion: 'marching', formationType: 'line', guideSide: 'left' });
+    const r1 = reduce(s0, { kind: 'RIGHT_FLANK' });
+    expect(r1.next.formationType).toBe('column');
+    expect(r1.next.pendingGuidonShift).toEqual({ mode: 'pivot-right', targetFile: 2 });
+
+    const r2 = reduce(r1.next, { kind: 'RIGHT_FLANK' });
+    expect(r2.next.formationType).toBe('inverted-line');
+    expect(r2.next.pendingGuidonShift).toEqual({ mode: 'straight', targetFile: 2 });
+
+    const r3 = reduce(r2.next, { kind: 'HALT' });
+    expect(r3.next.pendingGuidonShift).toBeNull();
   });
 });

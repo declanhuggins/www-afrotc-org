@@ -341,6 +341,7 @@ export default function SimulatorClient(): React.JSX.Element {
   const [calloutQueue, setCalloutQueue] = useState<CalloutEvent[]>([]);
   const [currentCallout, setCurrentCallout] = useState<CalloutEvent | null>(null);
   const [beatClockOn, setBeatClockOn] = useState<boolean>(false);
+  const [beatProgressMs, setBeatProgressMs] = useState(0);
 
   const commandId = useRef(0);
   const calloutId = useRef(0);
@@ -359,12 +360,21 @@ export default function SimulatorClient(): React.JSX.Element {
   );
   const fallInBaseState = useMemo(() => reduce(state, { kind: 'FALL_IN' }).next, [state]);
   const beatIntervalMs = useMemo(() => 60000 / Math.max(10, state.cadenceSpm || 0), [state.cadenceSpm]);
-  const nextBeatMs = useMemo(
-    () => Math.max(0, Math.round(beatIntervalMs - simulation.accumulatorMs)),
-    [beatIntervalMs, simulation.accumulatorMs]
-  );
+  const nextBeatMs = useMemo(() => {
+    const accumulator = beatClockOn ? beatProgressMs : simulation.accumulatorMs;
+    return Math.max(0, Math.round(beatIntervalMs - accumulator));
+  }, [beatIntervalMs, beatClockOn, beatProgressMs, simulation.accumulatorMs]);
   const nextBeatLabel = useMemo(() => nextBeatMs.toString().padStart(4, '0'), [nextBeatMs]);
-  const steppingFoot = useMemo(() => (simulation.stepCount % 2 === 0 ? 'Left' : 'Right'), [simulation.stepCount]);
+  const nextFoot = useMemo(() => (simulation.stepCount % 2 === 0 ? 'Left' : 'Right'), [simulation.stepCount]);
+  const plantedFoot = useMemo(() => (nextFoot === 'Left' ? 'Right' : 'Left'), [nextFoot]);
+  const nextFootLabel = useMemo(() => nextFoot.padStart(5, ' '), [nextFoot]);
+  const leftFootLabel = useMemo(() => 'Left'.padStart(5, ' '), []);
+  const rightFootLabel = useMemo(() => 'Right'.padStart(5, ' '), []);
+  const beatProgress = useMemo(() => {
+    if (!Number.isFinite(beatIntervalMs) || beatIntervalMs <= 0) return 0;
+    const progress = 1 - nextBeatMs / beatIntervalMs;
+    return clamp(progress, 0, 1);
+  }, [beatIntervalMs, nextBeatMs]);
   const showBeat = useMemo(() => !haltedIdle || beatClockOn, [beatClockOn, haltedIdle]);
   const layoutHeading = useMemo(
     () => layoutHeadingFromPlacement(placement.headingDeg),
@@ -498,27 +508,62 @@ export default function SimulatorClient(): React.JSX.Element {
   const enqueueCadenceCommand = useCallback(
     (command: Command, source: CommandSource, raw?: string) => {
       const descriptor = describeCommand(command);
-      const startBeat = beatClockOn
+      let startBeat = beatClockOn
         ? Math.max(beatCounterRef.current + 1, lastQueuedBeatRef.current + 1)
         : beatCounterRef.current + 1;
+      let immediatePreparatory = false;
+      if (state.motion === 'marching' && (command.kind === 'LEFT_FLANK' || command.kind === 'RIGHT_FLANK')) {
+        const requiresRightFoot = command.kind === 'RIGHT_FLANK';
+        const nextFoot = simulation.stepCount % 2 === 0 ? 'Left' : 'Right';
+        const plantedFoot = nextFoot === 'Left' ? 'Right' : 'Left';
+        const correctFoot = plantedFoot === (requiresRightFoot ? 'Right' : 'Left');
+        const beatPhase = beatIntervalMs > 0 ? beatAccumulatorRef.current / beatIntervalMs : 0;
+        const inFirstHalf = beatPhase <= 0.5;
+        if (correctFoot && inFirstHalf) {
+          immediatePreparatory = true;
+        } else {
+          startBeat += 1;
+        }
+      }
       if (!beatClockOn) {
         beatCounterRef.current = 0;
         beatAccumulatorRef.current = 0;
         lastQueuedBeatRef.current = startBeat;
       }
 
-      const events: CalloutEvent[] = [
-        { id: ++calloutId.current, beat: startBeat, label: descriptor.preparatory },
-        { id: ++calloutId.current, beat: startBeat + 1, label: null },
-        {
+      if (immediatePreparatory) {
+        speakWord(descriptor.preparatory);
+        setCurrentCallout({
           id: ++calloutId.current,
-          beat: startBeat + 2,
-          label: descriptor.execution,
-          command,
-          source,
-          raw,
-        },
-      ];
+          beat: beatCounterRef.current,
+          label: descriptor.preparatory,
+        });
+      }
+
+      const events: CalloutEvent[] = immediatePreparatory
+        ? [
+            { id: ++calloutId.current, beat: startBeat, label: null },
+            {
+              id: ++calloutId.current,
+              beat: startBeat + 1,
+              label: descriptor.execution,
+              command,
+              source,
+              raw,
+            },
+          ]
+        : [
+            { id: ++calloutId.current, beat: startBeat, label: descriptor.preparatory },
+            { id: ++calloutId.current, beat: startBeat + 1, label: null },
+            {
+              id: ++calloutId.current,
+              beat: startBeat + 2,
+              label: descriptor.execution,
+              command,
+              source,
+              raw,
+            },
+          ];
 
       if (command.kind === 'HALT') {
         events.push({ id: ++calloutId.current, beat: startBeat + 3, label: 'Step' });
@@ -530,7 +575,7 @@ export default function SimulatorClient(): React.JSX.Element {
       setCalloutQueue(calloutQueueRef.current);
       setBeatClockOn(true);
     },
-    [beatClockOn]
+    [beatClockOn, beatIntervalMs, simulation.stepCount, state.motion]
   );
 
   const dispatchCommand = useCallback(
@@ -629,6 +674,7 @@ export default function SimulatorClient(): React.JSX.Element {
       beatAccumulatorRef.current = 0;
       lastQueuedBeatRef.current = 0;
       setCurrentCallout(null);
+      setBeatProgressMs(0);
     }
   }, [haltedIdle, runCommand]);
 
@@ -741,6 +787,7 @@ export default function SimulatorClient(): React.JSX.Element {
         beatAccumulatorRef.current -= beatIntervalMs;
         handleBeat();
       }
+      setBeatProgressMs(beatAccumulatorRef.current);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -1020,10 +1067,41 @@ export default function SimulatorClient(): React.JSX.Element {
             <div className="pointer-events-none absolute inset-0 flex items-start justify-start p-3">
               <div className="flex flex-col gap-2">
                 {showBeat ? (
-                  <div className="inline-flex items-center gap-2 rounded bg-white/80 px-3 py-1 text-xs font-semibold text-slate-700 shadow dark:bg-slate-900/80 dark:text-slate-100">
-                    <span className="uppercase tracking-wide">Beat:</span>
-                    <span className="font-mono text-blue-700 dark:text-blue-300">{steppingFoot}</span>
-                    <span className="font-mono text-slate-600 dark:text-slate-200">~{nextBeatLabel} ms</span>
+                  <div className="flex flex-col gap-2 rounded bg-white/80 px-3 py-2 text-xs font-semibold text-slate-700 shadow dark:bg-slate-900/80 dark:text-slate-100">
+                    <div className="inline-flex items-center gap-2">
+                      <span className="uppercase tracking-wide">Next step:</span>
+                      <span className="font-mono text-blue-700 dark:text-blue-300 whitespace-pre">{nextFootLabel}</span>
+                      <span className="font-mono text-slate-600 dark:text-slate-200">~{nextBeatLabel} ms</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="uppercase tracking-wide text-[10px] text-slate-500 dark:text-slate-300">Planted</span>
+                      <div className="flex items-center gap-2 text-[11px]">
+                        <span
+                          className={`rounded px-1.5 py-0.5 ${
+                            plantedFoot === 'Left'
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-200'
+                              : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300'
+                          }`}
+                        >
+                          <span className="font-mono whitespace-pre">{leftFootLabel}</span>
+                        </span>
+                        <span
+                          className={`rounded px-1.5 py-0.5 ${
+                            plantedFoot === 'Right'
+                              ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-200'
+                              : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300'
+                          }`}
+                        >
+                          <span className="font-mono whitespace-pre">{rightFootLabel}</span>
+                        </span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-slate-800">
+                      <div
+                        className="h-1.5 rounded-full bg-blue-500"
+                        style={{ width: `${beatProgress * 100}%` }}
+                      />
+                    </div>
                   </div>
                 ) : state.motion !== 'marching' ? (
                   <div className="inline-flex items-center gap-2 rounded bg-white/80 px-3 py-1 text-xs font-semibold text-amber-700 shadow dark:bg-slate-900/80 dark:text-amber-200">

@@ -55,10 +55,43 @@ describe('orchestrator', () => {
     const { next } = reduce(marching, { kind: 'RIGHT_FLANK' });
     const result = orchestrator.applyCommandToSimulation(sim, marching, next, { kind: 'RIGHT_FLANK' });
     const queue = result.cadets[0].actionQueue;
-    expect(queue.length).toBe(3);
+    expect(queue.length).toBeGreaterThanOrEqual(1);
+    expect(queue[queue.length - 1].kind).toBe('step-rotate');
+  });
+
+  it('steps off when flanking from halt', () => {
+    const halted = createInitialState({ motion: 'halted', headingDeg: 0, composition: { elementCount: 1, rankCount: 1 }, stepLenIn: 24 });
+    const sim = orchestrator.createSimulation(halted, { cadetCount: 1 });
+    const { next } = reduce(halted, { kind: 'LEFT_FLANK' });
+    const result = orchestrator.applyCommandToSimulation(sim, halted, next, { kind: 'LEFT_FLANK' });
+    const queue = result.cadets[0].actionQueue;
+    expect(queue.length).toBe(1);
+    expect(queue[0].kind).toBe('step-rotate');
+  });
+
+  it('delays right flank until the right foot beat', () => {
+    const marching = createInitialState({ motion: 'marching', headingDeg: 0, composition: { elementCount: 1, rankCount: 1 }, stepLenIn: 24 });
+    const sim = { ...orchestrator.createSimulation(marching, { cadetCount: 1 }), stepCount: 0 };
+    const { next } = reduce(marching, { kind: 'RIGHT_FLANK' });
+    const result = orchestrator.applyCommandToSimulation(sim, marching, next, { kind: 'RIGHT_FLANK' });
+    const queue = result.cadets[0].actionQueue;
+    expect(queue.length).toBe(2);
     expect(queue[0].kind).toBe('step');
-    expect(queue[1].kind).toBe('rotate');
-    expect(queue[2].kind).toBe('step');
+    expect(queue[1].kind).toBe('step-rotate');
+  });
+
+  it('defers guidon repositioning until halt after a flank', () => {
+    const marching = createInitialState({ motion: 'marching', headingDeg: 0, composition: { elementCount: 3, rankCount: 2 } });
+    const sim0 = orchestrator.createSimulation(marching, { cadetCount: 6 });
+    const flank = reduce(marching, { kind: 'RIGHT_FLANK' });
+    const sim1 = orchestrator.applyCommandToSimulation(sim0, marching, flank.next, { kind: 'RIGHT_FLANK' });
+    const halt = reduce(flank.next, { kind: 'HALT' });
+    const sim2 = orchestrator.applyCommandToSimulation(sim1, flank.next, halt.next, { kind: 'HALT' });
+
+    const guidon = sim2.cadets.find(c => c.role === 'guidon-bearer');
+    const other = sim2.cadets.find(c => c.role !== 'guidon-bearer');
+    if (!guidon || !other) throw new Error('cadets missing');
+    expect(guidon.actionQueue.length).toBeGreaterThan(other.actionQueue.length);
   });
 
   it('keeps guidon facing-only actions limited to the commanded face for straight guidon shifts', () => {

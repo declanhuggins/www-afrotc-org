@@ -3,7 +3,8 @@ import { computeCadetPositions } from '../geometry/positions';
 
 export type CadetAction =
   | { kind: 'rotate'; deltaDeg: number }
-  | { kind: 'step'; distanceIn: number };
+  | { kind: 'step'; distanceIn: number }
+  | { kind: 'step-rotate'; deltaDeg: number; distanceIn: number };
 
 export interface OrchestratorCadet {
   id: string;
@@ -260,6 +261,41 @@ function moveGuidonAcrossFiles(
   return { ...moved, file: targetFile };
 }
 
+function applyPendingGuidonShift(
+  cadets: OrchestratorCadet[],
+  shift: { mode: 'pivot-right' | 'pivot-left' | 'straight'; targetFile: number },
+  state: SimulatorState,
+  stepLen: number
+): OrchestratorCadet[] {
+  const spacing =
+    state.interval === 'close'
+      ? state.spacing.intervalCloseIn
+      : state.spacing.intervalNormalIn;
+  return cadets.map(cadet => {
+    if (cadet.role !== 'guidon-bearer') return cadet;
+    if (shift.mode === 'straight') {
+      const deltaFiles = shift.targetFile - cadet.file;
+      const distance = Math.abs(deltaFiles * spacing);
+      if (distance < EPSILON) return cadet;
+      const actions = createStepSequence(distance, stepLen);
+      return {
+        ...appendActions(cadet, actions),
+        file: shift.targetFile,
+      };
+    }
+    const dir = shift.mode === 'pivot-right' ? 'right' : 'left';
+    return moveGuidonAcrossFiles(
+      cadet,
+      cadet.file,
+      shift.targetFile,
+      state.headingDeg,
+      spacing,
+      stepLen,
+      dir
+    );
+  });
+}
+
 function moveGuidonWithPivot(
   cadet: OrchestratorCadet,
   target: { x: number; y: number; file: number },
@@ -381,6 +417,18 @@ function createMovingTurnSequence(
   return actions;
 }
 
+function createFlankTurnSequence(
+  deltaDeg: number,
+  stepLen: number,
+  mode: 'step-then-rotate' | 'rotate-then-step'
+): CadetAction[] {
+  if (stepLen <= EPSILON) return createRotateSequence(deltaDeg);
+  if (mode === 'step-then-rotate') {
+    return [{ kind: 'step-rotate', deltaDeg, distanceIn: stepLen }];
+  }
+  return [...createRotateSequence(deltaDeg), ...createStepSequence(stepLen, stepLen)];
+}
+
 function stepIntervalMs(state: SimulatorState): number {
   const cadence = Math.max(10, state.cadenceSpm || 0);
   return (60_000 / cadence);
@@ -398,11 +446,22 @@ function performStep(cadets: OrchestratorCadet[], state: SimulatorState): Orches
           headingDeg: normalizeHeading(cadet.headingDeg + action.deltaDeg),
           actionQueue: rest,
         };
-      } else {
+      } else if (action.kind === 'step') {
         const rad = (cadet.headingDeg * Math.PI) / 180;
         const dist = action.distanceIn;
         next = {
           ...cadet,
+          x: cadet.x + Math.sin(rad) * dist,
+          y: cadet.y + Math.cos(rad) * dist,
+          actionQueue: rest,
+        };
+      } else {
+        const heading = normalizeHeading(cadet.headingDeg + action.deltaDeg);
+        const rad = (cadet.headingDeg * Math.PI) / 180;
+        const dist = action.distanceIn;
+        next = {
+          ...cadet,
+          headingDeg: heading,
           x: cadet.x + Math.sin(rad) * dist,
           y: cadet.y + Math.cos(rad) * dist,
           actionQueue: rest,
@@ -427,6 +486,11 @@ export function advanceSimulation(
   dtMs: number
 ): CadetSimulation {
   if (dtMs <= 0) return simulation;
+  const idleHalt = state.motion !== 'marching' && simulation.cadets.every(cadet => cadet.actionQueue.length === 0);
+  if (idleHalt) {
+    if (simulation.accumulatorMs === 0 && simulation.stepCount === 0) return simulation;
+    return { ...simulation, accumulatorMs: 0, stepCount: 0 };
+  }
   let accumulator = simulation.accumulatorMs + dtMs;
   const frame = stepIntervalMs(state);
   if (!Number.isFinite(frame) || frame <= 0) {
@@ -487,11 +551,12 @@ export function applyCommandToSimulation(
 ): CadetSimulation {
   // Handle drastic composition changes by rebuilding the formation outright.
   const isFacing = command.kind === 'LEFT_FACE' || command.kind === 'RIGHT_FACE' || command.kind === 'ABOUT_FACE' || command.kind === 'ROTATE_FALL_IN';
+  const isFlank = command.kind === 'LEFT_FLANK' || command.kind === 'RIGHT_FLANK';
   const compositionChanged =
     prevState.composition.elementCount !== nextState.composition.elementCount ||
     prevState.composition.rankCount !== nextState.composition.rankCount ||
     prevState.interval !== nextState.interval ||
-    (!isFacing && prevState.formationType !== nextState.formationType);
+    (!isFacing && !isFlank && prevState.formationType !== nextState.formationType);
   const stepLen = nextState.stepLenIn || DEFAULT_STEP_LEN_IN;
   let cadets = simulation.cadets;
 
@@ -516,11 +581,14 @@ export function applyCommandToSimulation(
     }
     case 'HALT': {
       if (prevState.motion === 'marching' && nextState.motion === 'halted') {
-        const haltSeq = [
+        const haltSeq: CadetAction[] = [
           ...createStepSequence(stepLen, stepLen),
-          ...createStepSequence(stepLen, stepLen),
+          { kind: 'step', distanceIn: 0 },
         ];
         cadets = appendActionsToCadets(cadets, haltSeq);
+        if (prevState.pendingGuidonShift) {
+          cadets = applyPendingGuidonShift(cadets, prevState.pendingGuidonShift, nextState, stepLen);
+        }
         return { cadets, accumulatorMs: simulation.accumulatorMs, stepCount: simulation.stepCount };
       }
       break;
@@ -603,8 +671,19 @@ export function applyCommandToSimulation(
     case 'TO_THE_REAR':
     case 'COUNTER_MARCH': {
       const delta = normalizeDelta(nextState.headingDeg - prevState.headingDeg);
-      const actions = createMovingTurnSequence(delta, stepLen, { halfStep: opts?.halfStep });
-      cadets = appendActionsToCadets(cadets, actions);
+      if (command.kind === 'LEFT_FLANK' || command.kind === 'RIGHT_FLANK') {
+        const requiresRightFoot = command.kind === 'RIGHT_FLANK';
+        const nextFoot = simulation.stepCount % 2 === 0 ? 'left' : 'right';
+        const needsDelay = prevState.motion === 'marching' && nextFoot !== (requiresRightFoot ? 'right' : 'left');
+        if (needsDelay) {
+          cadets = appendActionsToCadets(cadets, createStepSequence(stepLen, stepLen));
+        }
+        const actions = createFlankTurnSequence(delta, stepLen, 'step-then-rotate');
+        cadets = appendActionsToCadets(cadets, actions);
+      } else {
+        const actions = createMovingTurnSequence(delta, stepLen, { halfStep: opts?.halfStep });
+        cadets = appendActionsToCadets(cadets, actions);
+      }
       return { cadets, accumulatorMs: simulation.accumulatorMs, stepCount: simulation.stepCount };
     }
     default:
