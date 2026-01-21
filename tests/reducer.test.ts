@@ -35,7 +35,7 @@ describe('engine reducer', () => {
     expect(r1.error).toBeFalsy();
     expect(r1.next.headingDeg).toBe(270);
     expect(r1.next.formationType).toBe('inverted-column');
-    expect(r1.next.pendingGuidonShift?.mode).toBe('pivot-left');
+    expect(r1.next.pendingGuidonShift?.mode).toBe('auto');
   });
 
   it('To the Rear while marching rotates 180', () => {
@@ -135,7 +135,7 @@ describe('engine reducer', () => {
     const s0 = createInitialState({ motion: 'marching', formationType: 'line', guideSide: 'left' });
     const r1 = reduce(s0, { kind: 'RIGHT_FLANK' });
     expect(r1.next.formationType).toBe('column');
-    expect(r1.next.pendingGuidonShift).toEqual({ mode: 'pivot-right', targetFile: 2 });
+    expect(r1.next.pendingGuidonShift).toEqual({ mode: 'auto', targetFile: 2 });
 
     const r2 = reduce(r1.next, { kind: 'RIGHT_FLANK' });
     expect(r2.next.formationType).toBe('inverted-line');

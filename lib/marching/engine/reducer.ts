@@ -35,18 +35,19 @@ function nextFormationForLeft(formation: FormationType): FormationType {
 
 function buildFlankGuidonShift(
   prevFormation: FormationType,
+  nextFormation: FormationType,
   files: number,
   guideSide: SimulatorState['guideSide'],
   direction: 'left' | 'right'
 ): PendingGuidonShift | null {
   if (files <= 1) return null;
-  const targetFile = guideSide === 'left' ? Math.max(0, files - 1) : 0;
-  let mode: PendingGuidonShift['mode'];
-  if (direction === 'right') {
-    mode = prevFormation === 'column' ? 'straight' : 'pivot-right';
-  } else {
-    mode = prevFormation === 'inverted-column' ? 'straight' : 'pivot-left';
-  }
+  const lineBase = guideSide === 'left' ? 0 : Math.max(0, files - 1);
+  const columnBase = guideSide === 'left' ? Math.max(0, files - 1) : 0;
+  const targetFile = nextFormation === 'line' ? lineBase : columnBase;
+  const isDoubleFlank =
+    (direction === 'right' && prevFormation === 'column') ||
+    (direction === 'left' && prevFormation === 'inverted-column');
+  const mode: PendingGuidonShift['mode'] = isDoubleFlank ? 'straight' : 'auto';
   return { mode, targetFile };
 }
 
@@ -136,6 +137,7 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
       s.formationType = nextFormation;
       s.pendingGuidonShift = buildFlankGuidonShift(
         prevFormation,
+        nextFormation,
         s.composition.elementCount,
         s.guideSide,
         'right'
@@ -153,6 +155,7 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
       s.formationType = nextFormation;
       s.pendingGuidonShift = buildFlankGuidonShift(
         prevFormation,
+        nextFormation,
         s.composition.elementCount,
         s.guideSide,
         'left'
