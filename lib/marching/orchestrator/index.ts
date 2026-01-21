@@ -263,7 +263,7 @@ function moveGuidonAcrossFiles(
 
 function applyPendingGuidonShift(
   cadets: OrchestratorCadet[],
-  shift: { mode: 'pivot-right' | 'pivot-left' | 'straight'; targetFile: number },
+  shift: { mode: 'pivot-right' | 'pivot-left' | 'straight' | 'auto'; targetFile: number },
   state: SimulatorState,
   stepLen: number
 ): OrchestratorCadet[] {
@@ -283,7 +283,13 @@ function applyPendingGuidonShift(
         file: shift.targetFile,
       };
     }
-    const dir = shift.mode === 'pivot-right' ? 'right' : 'left';
+    const dir = shift.mode === 'auto'
+      ? shift.targetFile >= cadet.file
+        ? 'right'
+        : 'left'
+      : shift.mode === 'pivot-right'
+      ? 'right'
+      : 'left';
     return moveGuidonAcrossFiles(
       cadet,
       cadet.file,

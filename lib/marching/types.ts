@@ -4,7 +4,7 @@ export type FormationType = 'line' | 'column' | 'inverted-line' | 'inverted-colu
 export type Interval = 'normal' | 'close';
 export type Motion = 'halted' | 'marching';
 export type GuideSide = 'left' | 'right';
-export type GuidonShiftMode = 'pivot-right' | 'pivot-left' | 'straight';
+export type GuidonShiftMode = 'pivot-right' | 'pivot-left' | 'straight' | 'auto';
 
 export interface PendingGuidonShift {
   mode: GuidonShiftMode;
