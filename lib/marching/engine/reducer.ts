@@ -44,10 +44,12 @@ function buildFlankGuidonShift(
   const lineBase = guideSide === 'left' ? 0 : Math.max(0, files - 1);
   const columnBase = guideSide === 'left' ? Math.max(0, files - 1) : 0;
   const targetFile = nextFormation === 'line' ? lineBase : columnBase;
-  const isDoubleFlank =
-    (direction === 'right' && prevFormation === 'column') ||
-    (direction === 'left' && prevFormation === 'inverted-column');
-  const mode: PendingGuidonShift['mode'] = isDoubleFlank ? 'straight' : 'auto';
+  const isStraight = nextFormation === 'line' || nextFormation === 'inverted-line';
+  const mode: PendingGuidonShift['mode'] = isStraight
+    ? 'straight'
+    : direction === 'right'
+    ? 'pivot-right'
+    : 'pivot-left';
   return { mode, targetFile };
 }
 
