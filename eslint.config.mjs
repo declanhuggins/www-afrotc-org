@@ -10,6 +10,7 @@ export default [
   {
     ignores: [
       "**/.vercel/**",
+      "**/.wrangler/**",
       "**/.next/**",
       "**/dist/**",
       "**/node_modules/**",
