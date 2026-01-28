@@ -1,7 +1,7 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "afrotc",
-	"compatibility_date": "2025-12-14",
+	"compatibility_date": "2026-01-27",
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
@@ -25,13 +25,13 @@
 		}
 	],
 	"vars": {
-		"NODE_VERSION": "24.10.0"
+		"NODE_VERSION": "25.3.0"
 	},
 	"env": {
 		"prod": {
 			"name": "afrotc",
 			"vars": {
-				"NODE_VERSION": "24.10.0"
+				"NODE_VERSION": "25.3.0"
 			},
 			"routes": [
 				{
@@ -43,7 +43,7 @@
 		"dev": {
 			"name": "dev-afrotc",
 			"vars": {
-				"NODE_VERSION": "24.10.0"
+				"NODE_VERSION": "25.3.0"
 			},
 			"routes": [
 				{

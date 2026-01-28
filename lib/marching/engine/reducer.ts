@@ -45,11 +45,7 @@ function buildFlankGuidonShift(
   const columnBase = guideSide === 'left' ? Math.max(0, files - 1) : 0;
   const targetFile = nextFormation === 'line' ? lineBase : columnBase;
   const isStraight = nextFormation === 'line' || nextFormation === 'inverted-line';
-  const mode: PendingGuidonShift['mode'] = isStraight
-    ? 'straight'
-    : direction === 'right'
-    ? 'pivot-right'
-    : 'pivot-left';
+  const mode: PendingGuidonShift['mode'] = isStraight ? 'straight' : 'auto';
   return { mode, targetFile };
 }
 
@@ -166,9 +162,14 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
     }
 
     case 'TO_THE_REAR': {
-      const err = requireMarching(s);
-      if (err) return noOp(s, err);
+      if (s.motion === 'halted') {
+        s.motion = 'marching';
+      }
       s.headingDeg = normalizeHeading(s.headingDeg + 180);
+      if (s.formationType === 'line') s.formationType = 'inverted-line';
+      else if (s.formationType === 'inverted-line') s.formationType = 'line';
+      else if (s.formationType === 'column') s.formationType = 'inverted-column';
+      else if (s.formationType === 'inverted-column') s.formationType = 'column';
       return { next: s, effects: { animationHints: { useHalfStep: true } } };
     }
 

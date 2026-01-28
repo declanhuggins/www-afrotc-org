@@ -4,7 +4,8 @@ import { computeCadetPositions } from '../geometry/positions';
 export type CadetAction =
   | { kind: 'rotate'; deltaDeg: number }
   | { kind: 'step'; distanceIn: number }
-  | { kind: 'step-rotate'; deltaDeg: number; distanceIn: number };
+  | { kind: 'step-rotate'; deltaDeg: number; distanceIn: number }
+  | { kind: 'wait' };
 
 export interface OrchestratorCadet {
   id: string;
@@ -232,31 +233,38 @@ function moveGuidonLaterally(
   return appendActions(cadet, actions);
 }
 
-function moveGuidonAcrossFiles(
+function moveGuidonToPosition(
   cadet: OrchestratorCadet,
-  currentFile: number,
+  targetX: number,
+  targetY: number,
   targetFile: number,
-  nextHeading: number,
-  spacingIn: number,
-  stepLen: number,
-  direction?: 'left' | 'right'
+  formationHeading: number,
+  stepLen: number
 ): OrchestratorCadet {
-  const deltaFile = targetFile - currentFile;
-  if (Math.abs(deltaFile) < EPSILON) return cadet;
-  const distance = Math.abs(deltaFile * spacingIn);
-  const sign = direction
-    ? direction === 'right'
-      ? 1
-      : -1
-    : deltaFile >= 0
-    ? 1
-    : -1;
-  const rotateOut = sign * 90;
+  // Calculate vector from current position to target position
+  const dx = targetX - cadet.x;
+  const dy = targetY - cadet.y;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+  
+  if (distance < EPSILON) return { ...cadet, file: targetFile };
+  
+  // Calculate the angle to the target position (in degrees)
+  const targetAngleDeg = (Math.atan2(dx, dy) * 180) / Math.PI;
+  
+  // Calculate how much to rotate from current heading to face target
+  const currentHeading = formationHeading; // Guidon faces same direction as formation
+  let rotateToTarget = targetAngleDeg - currentHeading;
+  
+  // Normalize to [-180, 180]
+  while (rotateToTarget > 180) rotateToTarget -= 360;
+  while (rotateToTarget < -180) rotateToTarget += 360;
+  
   const actions: CadetAction[] = [
-    ...createRotateSequence(rotateOut),
+    ...createRotateSequence(rotateToTarget),
     ...createStepSequence(distance, stepLen),
-    ...createRotateSequence(-rotateOut),
+    ...createRotateSequence(-rotateToTarget),
   ];
+  
   const moved = appendActions(cadet, actions);
   return { ...moved, file: targetFile };
 }
@@ -271,33 +279,36 @@ function applyPendingGuidonShift(
     state.interval === 'close'
       ? state.spacing.intervalCloseIn
       : state.spacing.intervalNormalIn;
+  
   return cadets.map(cadet => {
     if (cadet.role !== 'guidon-bearer') return cadet;
-    if (shift.mode === 'straight') {
-      const deltaFiles = shift.targetFile - cadet.file;
-      const distance = Math.abs(deltaFiles * spacing);
-      if (distance < EPSILON) return cadet;
-      const actions = createStepSequence(distance, stepLen);
-      return {
-        ...appendActions(cadet, actions),
-        file: shift.targetFile,
-      };
-    }
-    const dir = shift.mode === 'auto'
-      ? shift.targetFile >= cadet.file
-        ? 'right'
-        : 'left'
-      : shift.mode === 'pivot-right'
-      ? 'right'
-      : 'left';
-    return moveGuidonAcrossFiles(
+    
+    // Calculate target position in world coordinates based on target file
+    const files = Math.max(1, Math.floor(state.composition.elementCount));
+    const ranks = Math.max(1, Math.floor(state.composition.rankCount));
+    
+    // Local frame calculation (same as computeCadetPositions)
+    const width = (files - 1) * spacing;
+    const y0 = width / 2;
+    
+    // Guidon is always in front rank (r=0)
+    const lx = 0;
+    const ly = y0 - shift.targetFile * spacing;
+    
+    // Rotate to world coordinates
+    const rad = (state.headingDeg * Math.PI) / 180;
+    const c = Math.cos(rad);
+    const s = Math.sin(rad);
+    const targetX = lx * c - ly * s;
+    const targetY = lx * s + ly * c;
+    
+    return moveGuidonToPosition(
       cadet,
-      cadet.file,
+      targetX,
+      targetY,
       shift.targetFile,
       state.headingDeg,
-      spacing,
-      stepLen,
-      dir
+      stepLen
     );
   });
 }
@@ -440,9 +451,13 @@ function stepIntervalMs(state: SimulatorState): number {
   return (60_000 / cadence);
 }
 
-function performStep(cadets: OrchestratorCadet[], state: SimulatorState): OrchestratorCadet[] {
+function performStep(
+  cadets: OrchestratorCadet[],
+  state: SimulatorState
+): { cadets: OrchestratorCadet[]; didStep: boolean } {
   const stepLen = state.stepLenIn || DEFAULT_STEP_LEN_IN;
-  return cadets.map(cadet => {
+  let didStep = false;
+  const nextCadets = cadets.map(cadet => {
     let next = cadet;
     if (cadet.actionQueue.length > 0) {
       const [action, ...rest] = cadet.actionQueue;
@@ -453,6 +468,7 @@ function performStep(cadets: OrchestratorCadet[], state: SimulatorState): Orches
           actionQueue: rest,
         };
       } else if (action.kind === 'step') {
+        didStep = true;
         const rad = (cadet.headingDeg * Math.PI) / 180;
         const dist = action.distanceIn;
         next = {
@@ -461,7 +477,10 @@ function performStep(cadets: OrchestratorCadet[], state: SimulatorState): Orches
           y: cadet.y + Math.cos(rad) * dist,
           actionQueue: rest,
         };
+      } else if (action.kind === 'wait') {
+        next = { ...cadet, actionQueue: rest };
       } else {
+        didStep = true;
         const heading = normalizeHeading(cadet.headingDeg + action.deltaDeg);
         const rad = (cadet.headingDeg * Math.PI) / 180;
         const dist = action.distanceIn;
@@ -477,6 +496,7 @@ function performStep(cadets: OrchestratorCadet[], state: SimulatorState): Orches
     }
 
     if (state.motion !== 'marching') return cadet;
+    didStep = true;
     const rad = (cadet.headingDeg * Math.PI) / 180;
     return {
       ...cadet,
@@ -484,6 +504,7 @@ function performStep(cadets: OrchestratorCadet[], state: SimulatorState): Orches
       y: cadet.y + Math.cos(rad) * stepLen,
     };
   });
+  return { cadets: nextCadets, didStep };
 }
 
 export function advanceSimulation(
@@ -508,9 +529,12 @@ export function advanceSimulation(
   let stepCount = simulation.stepCount;
   while (accumulator >= frame) {
     accumulator -= frame;
-    cadets = performStep(cadets, state);
+    const stepResult = performStep(cadets, state);
+    cadets = stepResult.cadets;
     changed = true;
-    stepCount += 1;
+    if (stepResult.didStep) {
+      stepCount += 1;
+    }
   }
 
   if (!changed) {
@@ -579,7 +603,7 @@ export function applyCommandToSimulation(
   switch (command.kind) {
     case 'FORWARD_MARCH': {
       if (prevState.motion === 'halted' && nextState.motion === 'marching') {
-        const startSeq = createStepSequence(stepLen, stepLen);
+        const startSeq: CadetAction[] = [{ kind: 'wait' }, ...createStepSequence(stepLen, stepLen)];
         cadets = appendActionsToCadets(cadets, startSeq);
         return { cadets, accumulatorMs: 0, stepCount: 0 };
       }
@@ -593,6 +617,8 @@ export function applyCommandToSimulation(
         ];
         cadets = appendActionsToCadets(cadets, haltSeq);
         if (prevState.pendingGuidonShift) {
+          // For guidon shift after flanks, we need to use the current heading (after turn)
+          // because the guidon moves in the new formation orientation
           cadets = applyPendingGuidonShift(cadets, prevState.pendingGuidonShift, nextState, stepLen);
         }
         return { cadets, accumulatorMs: simulation.accumulatorMs, stepCount: simulation.stepCount };
@@ -639,57 +665,54 @@ export function applyCommandToSimulation(
         if (shift) {
           cadets = cadets.map(cadet => {
             if (cadet.role !== 'guidon-bearer') return cadet;
-            if (shift.mode === 'straight') {
-              const rawDeltaFiles = shift.targetFile - cadet.file;
-              const deltaFiles = Math.abs(rawDeltaFiles) < EPSILON && from === 'inverted-line' && to === 'line'
-                ? files - 1
-                : rawDeltaFiles;
-              const distance = Math.abs(deltaFiles * spacing);
-              if (distance < EPSILON) return cadet;
-              const actions = createStepSequence(distance, stepLen);
-              return {
-                ...appendActions(cadet, actions),
-                file: shift.targetFile,
-              };
-            }
-            if (cadet.file === shift.targetFile) return cadet;
-            const dir = shift.mode === 'pivot-right' ? 'right' : 'left';
-            return moveGuidonAcrossFiles(
-              cadet,
-              cadet.file,
-              shift.targetFile,
-              nextState.headingDeg,
-              spacing,
-              stepLen,
-              dir
-            );
+            
+            // Use the new geometry-based guidon movement
+            return applyPendingGuidonShift([cadet], shift, nextState, stepLen)[0];
           });
         }
       }
       return { cadets, accumulatorMs: simulation.accumulatorMs, stepCount: simulation.stepCount };
     }
     case 'LEFT_FLANK':
-    case 'RIGHT_FLANK':
+    case 'RIGHT_FLANK': {
+      const delta = normalizeDelta(nextState.headingDeg - prevState.headingDeg);
+      const requiresRightFoot = command.kind === 'LEFT_FLANK';
+      const nextFoot = simulation.stepCount % 2 === 0 ? 'left' : 'right';
+      const needsDelay = prevState.motion === 'marching' && nextFoot !== (requiresRightFoot ? 'right' : 'left');
+      if (needsDelay) {
+        cadets = appendActionsToCadets(cadets, createStepSequence(stepLen, stepLen));
+      }
+      const actions = createFlankTurnSequence(delta, stepLen, 'step-then-rotate');
+      cadets = appendActionsToCadets(cadets, actions);
+      return { cadets, accumulatorMs: simulation.accumulatorMs, stepCount: simulation.stepCount };
+    }
     case 'COLUMN_RIGHT':
     case 'COLUMN_LEFT':
     case 'COLUMN_HALF_RIGHT':
     case 'COLUMN_HALF_LEFT':
-    case 'TO_THE_REAR':
     case 'COUNTER_MARCH': {
       const delta = normalizeDelta(nextState.headingDeg - prevState.headingDeg);
-      if (command.kind === 'LEFT_FLANK' || command.kind === 'RIGHT_FLANK') {
-        const requiresRightFoot = command.kind === 'RIGHT_FLANK';
-        const nextFoot = simulation.stepCount % 2 === 0 ? 'left' : 'right';
-        const needsDelay = prevState.motion === 'marching' && nextFoot !== (requiresRightFoot ? 'right' : 'left');
-        if (needsDelay) {
-          cadets = appendActionsToCadets(cadets, createStepSequence(stepLen, stepLen));
-        }
-        const actions = createFlankTurnSequence(delta, stepLen, 'step-then-rotate');
-        cadets = appendActionsToCadets(cadets, actions);
-      } else {
-        const actions = createMovingTurnSequence(delta, stepLen, { halfStep: opts?.halfStep });
-        cadets = appendActionsToCadets(cadets, actions);
+      const actions = createMovingTurnSequence(delta, stepLen, { halfStep: opts?.halfStep });
+      cadets = appendActionsToCadets(cadets, actions);
+      return { cadets, accumulatorMs: simulation.accumulatorMs, stepCount: simulation.stepCount };
+    }
+    case 'TO_THE_REAR': {
+      // TO_THE_REAR: 180-degree turn with moving turn sequence
+      // - Can be called from halt or marching
+      // - Requires right foot when marching
+      // - Uses moving turn (step + turn simultaneously)
+      // - Formation inverts
+      // - Ends in marching state
+      const delta = normalizeDelta(nextState.headingDeg - prevState.headingDeg);
+      const nextFoot = simulation.stepCount % 2 === 0 ? 'left' : 'right';
+      const needsDelay = prevState.motion === 'marching' && nextFoot !== 'right';
+      
+      if (needsDelay) {
+        cadets = appendActionsToCadets(cadets, createStepSequence(stepLen, stepLen));
       }
+      
+      const actions = createMovingTurnSequence(delta, stepLen, { halfStep: opts?.halfStep });
+      cadets = appendActionsToCadets(cadets, actions);
       return { cadets, accumulatorMs: simulation.accumulatorMs, stepCount: simulation.stepCount };
     }
     default:
