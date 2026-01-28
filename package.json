@@ -21,30 +21,31 @@
 		"upgrade": "npx npm-check-updates -u && npm install"
 	},
 	"dependencies": {
-		"@opennextjs/cloudflare": "^1.14.10",
-		"next": "16.1.4",
-		"react": "^19.2.3",
-		"react-dom": "^19.2.3"
+		"@opennextjs/cloudflare": "^1.16.0",
+		"next": "16.1.5",
+		"react": "^19.2.4",
+		"react-dom": "^19.2.4"
 	},
 	"devDependencies": {
 		"@eslint/eslintrc": "^3",
 		"@eslint/js": "^9",
-		"@next/eslint-plugin-next": "^16.1.4",
+		"@next/eslint-plugin-next": "^16.1.5",
 		"@tailwindcss/postcss": "^4",
-		"@typescript-eslint/eslint-plugin": "^8",
-		"@typescript-eslint/parser": "^8",
-		"@types/node": "^25.0.9",
+		"@types/node": "^25.0.10",
 		"@types/react": "^19",
 		"@types/react-dom": "^19",
+		"@typescript-eslint/eslint-plugin": "^8",
+		"@typescript-eslint/parser": "^8",
 		"eslint": "^9",
-		"eslint-config-next": "^16.1.4",
+		"eslint-config-next": "^16.1.5",
 		"eslint-plugin-react": "^7",
-		"eslint-plugin-react-hooks": "^5",
-		"globals": "^15",
-		"npm-check-updates": "^19.3.1",
+		"eslint-plugin-react-hooks": "^7",
+		"globals": "^17",
+		"npm-check-updates": "^19.3.2",
 		"tailwindcss": "^4",
 		"typescript": "^5",
-		"vitest": "^4.0.17",
-		"wrangler": "^4.59.2"
+		"undici": "^7.19.1",
+		"vitest": "^4.0.18",
+		"wrangler": "^4.61.0"
 	}
 }

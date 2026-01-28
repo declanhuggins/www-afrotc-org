@@ -49,6 +49,8 @@ interface CalloutEvent {
   id: number;
   beat: number;
   label: string | null;
+  phase?: 'preparatory' | 'execution' | 'other';
+  speak?: boolean;
   command?: Command;
   source?: CommandSource;
   raw?: string;
@@ -130,6 +132,18 @@ const QUICK_COMMANDS: Array<{
   { id: 'halt', label: 'HALT', command: { kind: 'HALT' }, source: 'button', hotkey: 'SPACE' },
   { id: 'left-flank', label: 'LEFT FLANK', command: { kind: 'LEFT_FLANK' }, source: 'button', hotkey: 'Q' },
   { id: 'right-flank', label: 'RIGHT FLANK', command: { kind: 'RIGHT_FLANK' }, source: 'button', hotkey: 'E' },
+  { id: 'column-left', label: 'COLUMN LEFT', command: { kind: 'COLUMN_LEFT' }, source: 'button', hotkey: 'Shift+Q' },
+  { id: 'column-right', label: 'COLUMN RIGHT', command: { kind: 'COLUMN_RIGHT' }, source: 'button', hotkey: 'Shift+E' },
+  { id: 'to-the-rear', label: 'TO THE REAR', command: { kind: 'TO_THE_REAR' }, source: 'button', hotkey: 'Shift+S' },
+  { id: 'column-half-left', label: 'COLUMN HALF LEFT', command: { kind: 'COLUMN_HALF_LEFT' }, source: 'button' },
+  { id: 'column-half-right', label: 'COLUMN HALF RIGHT', command: { kind: 'COLUMN_HALF_RIGHT' }, source: 'button' },
+  { id: 'counter-march', label: 'COUNTER MARCH', command: { kind: 'COUNTER_MARCH' }, source: 'button' },
+  { id: 'guide-left', label: 'GUIDE LEFT', command: { kind: 'GUIDE_LEFT' }, source: 'button' },
+  { id: 'guide-right', label: 'GUIDE RIGHT', command: { kind: 'GUIDE_RIGHT' }, source: 'button' },
+  { id: 'dress-right', label: 'AT CLOSE INTERVAL, DRESS RIGHT, DRESS', command: { kind: 'AT_CLOSE_INTERVAL_DRESS_RIGHT_DRESS' }, source: 'button' },
+  { id: 'ready-front', label: 'READY, FRONT', command: { kind: 'READY_FRONT' }, source: 'button' },
+  { id: 'open-ranks', label: 'OPEN RANKS', command: { kind: 'OPEN_RANKS' }, source: 'button' },
+  { id: 'close-ranks', label: 'CLOSE RANKS', command: { kind: 'CLOSE_RANKS' }, source: 'button' },
   { id: 'fall-in', label: 'FALL-IN', command: { kind: 'FALL_IN' }, source: 'button', hotkey: 'F' },
   { id: 'rotate-fall-in', label: 'ROTATE FALL-IN', command: { kind: 'ROTATE_FALL_IN' }, source: 'button', hotkey: 'R' },
 ];
@@ -141,6 +155,9 @@ const KEY_COMMANDS: Record<string, Command> = {
   d: { kind: 'RIGHT_FACE' },
   q: { kind: 'LEFT_FLANK' },
   e: { kind: 'RIGHT_FLANK' },
+  'shift+q': { kind: 'COLUMN_LEFT' },
+  'shift+e': { kind: 'COLUMN_RIGHT' },
+  'shift+s': { kind: 'TO_THE_REAR' },
   f: { kind: 'FALL_IN' },
   r: { kind: 'ROTATE_FALL_IN' },
   ' ': { kind: 'HALT' },
@@ -230,18 +247,75 @@ function describeCommand(command: Command): CommandDescriptor {
   };
 }
 
-function speakWord(word: string) {
+type SpeechPhase = 'preparatory' | 'execution' | 'other';
+
+function speakWord(
+  word: string,
+  options?: { phase?: SpeechPhase; cancel?: boolean; pitch?: number; volume?: number; rate?: number }
+) {
   if (!word || typeof window === 'undefined') return;
   const synth = window.speechSynthesis;
   if (!synth) return;
-  synth.cancel();
+  if (options?.cancel) synth.cancel();
   const utter = new SpeechSynthesisUtterance(word);
   const voice = pickVoice();
   if (voice) utter.voice = voice;
-  utter.rate = 0.92;
-  utter.pitch = 1.05;
-  utter.volume = 1;
+  const phase = options?.phase ?? 'other';
+  const pitch = options?.pitch ?? 1.0;
+  const volume = options?.volume ?? 1.0;
+  utter.rate = options?.rate ?? (phase === 'execution' ? 1.0 : 0.92);
+  utter.pitch = pitch;
+  utter.volume = volume;
   synth.speak(utter);
+}
+
+function sayExecutionWord(word: string) {
+  const normalized = word.toUpperCase();
+  if (normalized === 'MARCH') return 'HARCH';
+  if (normalized === 'FACE') return 'HAYCE';
+  return word;
+}
+
+function sayFallInExecution() {
+  speakWord('Fall', { phase: 'execution', cancel: true, pitch: 1.1, volume: 1.0 });
+  speakWord('in', { phase: 'execution', pitch: 0.9, volume: 1.0 });
+}
+
+function sayPreparatory(word: string, cancel?: boolean) {
+  speakWord(word, { phase: 'preparatory', cancel });
+}
+
+function speakCommandWord(word: string, phase: SpeechPhase, options?: { cancel?: boolean }) {
+  const spoken = phase === 'execution' ? sayExecutionWord(word) : word;
+  speakWord(spoken, { phase, cancel: options?.cancel });
+}
+
+function getFallInPreparatory(cadetCount: number): string {
+  return cadetCount >= 5 ? 'Flight' : 'Detail';
+}
+
+function sayFallInSequence(preparatory: string, beatMs: number) {
+  const interval = Number.isFinite(beatMs) && beatMs > 0 ? beatMs : 600;
+  window.setTimeout(() => {
+    speakWord(preparatory, { phase: 'preparatory', cancel: true });
+  }, 0);
+  window.setTimeout(() => {
+    speakWord('Fall', { phase: 'execution', rate: 0.85, pitch: 1.0, volume: 1.0 });
+  }, interval * 2);
+  window.setTimeout(() => {
+    speakWord('in', { phase: 'execution', pitch: 1.0, volume: 1.0 });
+  }, interval * 3);
+}
+
+function getDescriptor(command: Command, cadetCount: number): CommandDescriptor {
+  const base = describeCommand(command);
+  if (command.kind === 'FALL_IN' || command.kind === 'ROTATE_FALL_IN') {
+    return {
+      ...base,
+      preparatory: getFallInPreparatory(cadetCount),
+    };
+  }
+  return base;
 }
 
 function drawCadet(
@@ -451,11 +525,13 @@ export default function SimulatorClient(): React.JSX.Element {
 
   const runCommand = useCallback(
     (command: Command, source: CommandSource, raw?: string) => {
-      const descriptor = describeCommand(command);
+      const descriptor = getDescriptor(command, setup.cadetCount);
       // Voice both preparatory and execution terms for non-cadence commands immediately.
       if (!CADENCE_COMMANDS.has(command.kind)) {
-        speakWord(descriptor.preparatory);
-        speakWord(descriptor.execution);
+        if (command.kind !== 'ROTATE_FALL_IN' && command.kind !== 'FALL_IN') {
+          speakCommandWord(descriptor.preparatory, 'preparatory', { cancel: true });
+          speakCommandWord(descriptor.execution, 'execution');
+        }
       }
       setState(prevState => {
         const result = reduce(prevState, command);
@@ -490,80 +566,91 @@ export default function SimulatorClient(): React.JSX.Element {
         return result.next;
       });
     },
-    []
+    [setup.cadetCount]
   );
 
   const enqueueCadenceCommand = useCallback(
     (command: Command, source: CommandSource, raw?: string) => {
-      const descriptor = describeCommand(command);
-      let startBeat = beatClockOn
-        ? Math.max(beatCounterRef.current + 1, lastQueuedBeatRef.current + 1)
-        : beatCounterRef.current + 1;
-      let immediatePreparatory = false;
-      if (state.motion === 'marching' && (command.kind === 'LEFT_FLANK' || command.kind === 'RIGHT_FLANK')) {
-        const requiresRightFoot = command.kind === 'RIGHT_FLANK';
+      const descriptor = getDescriptor(command, setup.cadetCount);
+      const cadenceStart = !beatClockOn;
+      const beatPhase = beatIntervalMs > 0 ? beatAccumulatorRef.current / beatIntervalMs : 0;
+      const inFirstHalf = beatPhase <= 0.5;
+      let baseBeat = inFirstHalf ? beatCounterRef.current : beatCounterRef.current + 1;
+      if (state.motion === 'marching' && (command.kind === 'LEFT_FLANK' || command.kind === 'RIGHT_FLANK' || command.kind === 'TO_THE_REAR')) {
+        const requiresRightFoot = command.kind === 'LEFT_FLANK' || command.kind === 'TO_THE_REAR';
         const nextFoot = simulation.stepCount % 2 === 0 ? 'Left' : 'Right';
         const plantedFoot = nextFoot === 'Left' ? 'Right' : 'Left';
         const correctFoot = plantedFoot === (requiresRightFoot ? 'Right' : 'Left');
-        const beatPhase = beatIntervalMs > 0 ? beatAccumulatorRef.current / beatIntervalMs : 0;
-        const inFirstHalf = beatPhase <= 0.5;
-        if (correctFoot && inFirstHalf) {
-          immediatePreparatory = true;
-        } else {
-          startBeat += 1;
+        if (!correctFoot) {
+          baseBeat = beatCounterRef.current + 1;
         }
       }
+
+      const queueBase = Math.max(baseBeat, lastQueuedBeatRef.current);
+      const preparatoryBeat = queueBase;
+      const executionBeat = queueBase + 2;
+      const immediatePreparatory = preparatoryBeat === beatCounterRef.current && (cadenceStart || inFirstHalf);
       if (!beatClockOn) {
         beatCounterRef.current = 0;
         beatAccumulatorRef.current = 0;
-        lastQueuedBeatRef.current = startBeat;
+        lastQueuedBeatRef.current = executionBeat;
       }
 
       if (immediatePreparatory) {
-        speakWord(descriptor.preparatory);
+        speakCommandWord(descriptor.preparatory, 'preparatory', { cancel: true });
         setCurrentCallout({
           id: ++calloutId.current,
           beat: beatCounterRef.current,
           label: descriptor.preparatory,
+          phase: 'preparatory',
+          speak: true,
         });
       }
 
-      const events: CalloutEvent[] = immediatePreparatory
-        ? [
-            { id: ++calloutId.current, beat: startBeat, label: null },
-            {
-              id: ++calloutId.current,
-              beat: startBeat + 1,
-              label: descriptor.execution,
-              command,
-              source,
-              raw,
-            },
-          ]
-        : [
-            { id: ++calloutId.current, beat: startBeat, label: descriptor.preparatory },
-            { id: ++calloutId.current, beat: startBeat + 1, label: null },
-            {
-              id: ++calloutId.current,
-              beat: startBeat + 2,
-              label: descriptor.execution,
-              command,
-              source,
-              raw,
-            },
-          ];
+      const events: CalloutEvent[] = [];
+      if (!immediatePreparatory) {
+        events.push({
+          id: ++calloutId.current,
+          beat: preparatoryBeat,
+          label: descriptor.preparatory,
+          phase: 'preparatory',
+          speak: true,
+        });
+      }
+      events.push({
+        id: ++calloutId.current,
+        beat: executionBeat,
+        label: descriptor.execution,
+        phase: 'execution',
+        speak: true,
+        command,
+        source,
+        raw,
+      });
 
       if (command.kind === 'HALT') {
-        events.push({ id: ++calloutId.current, beat: startBeat + 3, label: 'Step' });
-        events.push({ id: ++calloutId.current, beat: startBeat + 4, label: 'Stop' });
+        events.push({
+          id: ++calloutId.current,
+          beat: executionBeat + 1,
+          label: 'Step',
+          phase: 'other',
+          speak: false,
+        });
+        events.push({
+          id: ++calloutId.current,
+          beat: executionBeat + 2,
+          label: 'Stop',
+          phase: 'other',
+          speak: false,
+        });
       }
 
       calloutQueueRef.current = [...calloutQueueRef.current, ...events];
-      lastQueuedBeatRef.current = events[events.length - 1]?.beat ?? startBeat;
+      lastQueuedBeatRef.current = events[events.length - 1]?.beat ?? executionBeat;
       setCalloutQueue(calloutQueueRef.current);
       setBeatClockOn(true);
     },
-    [beatClockOn, beatIntervalMs, simulation.stepCount, state.motion]
+    [beatClockOn, beatIntervalMs, simulation.stepCount, state.motion, setup.cadetCount]
   );
 
   const dispatchCommand = useCallback(
@@ -579,7 +666,7 @@ export default function SimulatorClient(): React.JSX.Element {
           headingDeg: baseFallIn.headingDeg,
           anchor: prev.anchor ?? (pointer ? { x: pointer.x + offset.x, y: pointer.y + offset.y } : null),
         }));
-        setCommandStatus(describeCommand(command));
+        setCommandStatus(getDescriptor(command, setup.cadetCount));
         return;
       }
 
@@ -614,13 +701,13 @@ export default function SimulatorClient(): React.JSX.Element {
 
       if (CADENCE_COMMANDS.has(command.kind)) {
         enqueueCadenceCommand(command, source, raw);
-        setCommandStatus(describeCommand(command));
+        setCommandStatus(getDescriptor(command, setup.cadetCount));
         return;
       }
 
       runCommand(command, source, raw);
     },
-    [state, placement.active, computeGuidonOffset, enqueueCadenceCommand, runCommand]
+    [state, placement.active, placement.headingDeg, computeGuidonOffset, enqueueCadenceCommand, runCommand, setup.cadetCount]
   );
 
   const handleSubmit = useCallback(
@@ -647,7 +734,9 @@ export default function SimulatorClient(): React.JSX.Element {
     if (due.length) {
       due.forEach(evt => {
         if (evt.label) {
-          speakWord(evt.label);
+          if (evt.speak !== false) {
+            speakCommandWord(evt.label, evt.phase ?? 'other');
+          }
           setCurrentCallout(evt);
         }
         if (evt.command) {
@@ -729,7 +818,7 @@ export default function SimulatorClient(): React.JSX.Element {
       setState(placedState);
       const simWithRoles = orchestrator.assignCadetRoles({ ...baseSim, cadets: shiftedCadets }, placedState);
       setSimulation(simWithRoles);
-      const descriptor = describeCommand({ kind: 'FALL_IN' } as Command);
+      const descriptor = getDescriptor({ kind: 'FALL_IN' } as Command, setup.cadetCount);
       commandId.current += 1;
       const entry: CommandLogEntry = {
         id: commandId.current,
@@ -741,8 +830,9 @@ export default function SimulatorClient(): React.JSX.Element {
       setHistory(prev => [entry, ...prev].slice(0, 50));
       setCommandStatus(descriptor);
       setPlacement({ active: false, headingDeg: 0, anchor: null });
+      sayFallInSequence(getFallInPreparatory(setup.cadetCount), beatIntervalMs);
     },
-    [placement.active, placement.headingDeg, setup.cadetCount, state]
+    [placement.active, placement.headingDeg, setup.cadetCount, state, beatIntervalMs]
   );
 
   useEffect(() => {
@@ -752,7 +842,8 @@ export default function SimulatorClient(): React.JSX.Element {
         return;
       }
       const key = event.key.toLowerCase();
-      const command = KEY_COMMANDS[key];
+      const combo = event.shiftKey ? `shift+${key}` : key;
+      const command = KEY_COMMANDS[combo] ?? KEY_COMMANDS[key];
       if (!command) return;
       event.preventDefault();
       dispatchCommand(command, 'keyboard');
