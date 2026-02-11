@@ -34,7 +34,7 @@ function nextFormationForLeft(formation: FormationType): FormationType {
 }
 
 function buildFlankGuidonShift(
-  prevFormation: FormationType,
+  _prevFormation: FormationType,
   nextFormation: FormationType,
   files: number,
   guideSide: SimulatorState['guideSide'],
@@ -45,7 +45,11 @@ function buildFlankGuidonShift(
   const columnBase = guideSide === 'left' ? Math.max(0, files - 1) : 0;
   const targetFile = nextFormation === 'line' ? lineBase : columnBase;
   const isStraight = nextFormation === 'line' || nextFormation === 'inverted-line';
-  const mode: PendingGuidonShift['mode'] = isStraight ? 'straight' : 'auto';
+  const mode: PendingGuidonShift['mode'] = isStraight
+    ? 'straight'
+    : direction === 'right'
+      ? 'pivot-right'
+      : 'pivot-left';
   return { mode, targetFile };
 }
 
