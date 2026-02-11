@@ -276,15 +276,6 @@ function sayExecutionWord(word: string) {
   return word;
 }
 
-function sayFallInExecution() {
-  speakWord('Fall', { phase: 'execution', cancel: true, pitch: 1.1, volume: 1.0 });
-  speakWord('in', { phase: 'execution', pitch: 0.9, volume: 1.0 });
-}
-
-function sayPreparatory(word: string, cancel?: boolean) {
-  speakWord(word, { phase: 'preparatory', cancel });
-}
-
 function speakCommandWord(word: string, phase: SpeechPhase, options?: { cancel?: boolean }) {
   const spoken = phase === 'execution' ? sayExecutionWord(word) : word;
   speakWord(spoken, { phase, cancel: options?.cancel });
@@ -707,7 +698,7 @@ export default function SimulatorClient(): React.JSX.Element {
 
       runCommand(command, source, raw);
     },
-    [state, placement.active, placement.headingDeg, computeGuidonOffset, enqueueCadenceCommand, runCommand, setup.cadetCount]
+    [state, placement.active, computeGuidonOffset, enqueueCadenceCommand, runCommand, setup.cadetCount]
   );
 
   const handleSubmit = useCallback(
@@ -872,10 +863,6 @@ export default function SimulatorClient(): React.JSX.Element {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [beatClockOn, beatIntervalMs, handleBeat]);
-
-  useEffect(() => {
-    setSimulation(prev => orchestrator.assignCadetRoles(prev, state));
-  }, [state]);
 
   useEffect(() => {
     let raf = 0;

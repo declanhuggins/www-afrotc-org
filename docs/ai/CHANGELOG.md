@@ -17,3 +17,7 @@ Log milestones and PRs with brief notes linking to requirements and tests.
 - Deferred guidon shifts after flanks and added in-place stop step on HALT — REQ-008, REQ-010, REQ-020 partial.
 - Updated cadence UI indicators for planted/next foot and beat progress.
 - Added/updated tests covering flank timing, guidon shift deferral, and halt sequencing.
+
+## 2026-02-11
+
+- Bumped core dependencies and tooling (Next.js, OpenNext Cloudflare, ESLint, Wrangler, Undici, and @types/node).

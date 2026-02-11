@@ -287,6 +287,8 @@ function applyPendingGuidonShift(
     const files = Math.max(1, Math.floor(state.composition.elementCount));
     const ranks = Math.max(1, Math.floor(state.composition.rankCount));
     
+    if (files <= 1) return cadet;
+
     // Local frame calculation (same as computeCadetPositions)
     const width = (files - 1) * spacing;
     const y0 = width / 2;
@@ -302,14 +304,46 @@ function applyPendingGuidonShift(
     const targetX = lx * c - ly * s;
     const targetY = lx * s + ly * c;
     
-    return moveGuidonToPosition(
-      cadet,
-      targetX,
-      targetY,
-      shift.targetFile,
-      state.headingDeg,
-      stepLen
-    );
+    const target = { x: targetX, y: targetY, file: shift.targetFile };
+    switch (shift.mode) {
+      case 'pivot-right':
+        return moveGuidonWithPivot(cadet, target, state.headingDeg, 'right', stepLen);
+      case 'pivot-left':
+        return moveGuidonWithPivot(cadet, target, state.headingDeg, 'left', stepLen);
+      case 'straight':
+        {
+          const dx = target.x - cadet.x;
+          const dy = target.y - cadet.y;
+          const distance = Math.hypot(dx, dy);
+          if (distance < EPSILON) {
+            if (shift.targetFile === cadet.file) return cadet;
+            const actions: CadetAction[] = [{ kind: 'step', distanceIn: 0 }];
+            return {
+              ...appendActions(cadet, actions),
+              file: shift.targetFile,
+            };
+          }
+          const rad = (state.headingDeg * Math.PI) / 180;
+          let projection = dx * Math.sin(rad) + dy * Math.cos(rad);
+          if (Math.abs(projection) < EPSILON) {
+            projection = distance;
+          }
+          const actions = createStepSequence(projection, stepLen);
+          return {
+            ...appendActions(cadet, actions),
+            file: shift.targetFile,
+          };
+        }
+      default:
+        return moveGuidonToPosition(
+          cadet,
+          targetX,
+          targetY,
+          shift.targetFile,
+          state.headingDeg,
+          stepLen
+        );
+    }
   });
 }
 
@@ -676,7 +710,7 @@ export function applyCommandToSimulation(
     case 'LEFT_FLANK':
     case 'RIGHT_FLANK': {
       const delta = normalizeDelta(nextState.headingDeg - prevState.headingDeg);
-      const requiresRightFoot = command.kind === 'LEFT_FLANK';
+      const requiresRightFoot = command.kind === 'RIGHT_FLANK';
       const nextFoot = simulation.stepCount % 2 === 0 ? 'left' : 'right';
       const needsDelay = prevState.motion === 'marching' && nextFoot !== (requiresRightFoot ? 'right' : 'left');
       if (needsDelay) {
