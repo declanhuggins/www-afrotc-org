@@ -18,6 +18,10 @@ Log milestones and PRs with brief notes linking to requirements and tests.
 - Updated cadence UI indicators for planted/next foot and beat progress.
 - Added/updated tests covering flank timing, guidon shift deferral, and halt sequencing.
 
+## 2026-02-11
+
+- Bumped core dependencies and tooling (Next.js, OpenNext Cloudflare, ESLint, Wrangler, Undici, and @types/node).
+
 ## 2026-02-16
 
 - Rewrote guidon shift logic to use a rules-table approach (`lib/marching/guidon/rules.ts`) instead of dynamic mode computation — REQ-007, REQ-020.
@@ -26,7 +30,3 @@ Log milestones and PRs with brief notes linking to requirements and tests.
 - Improved mobile UI: responsive 2-column command grid, canvas scaling, panel reorder (canvas first on mobile), tighter spacing.
 - Added visual indicator (red) for unimplemented command buttons.
 - Bumped Cloudflare compatibility date and Node version; updated dependencies.
-
-## 2026-02-11
-
-- Bumped core dependencies and tooling (Next.js, OpenNext Cloudflare, ESLint, Wrangler, Undici, and @types/node).
