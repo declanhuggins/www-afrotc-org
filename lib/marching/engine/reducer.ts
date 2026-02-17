@@ -33,24 +33,24 @@ function nextFormationForLeft(formation: FormationType): FormationType {
   return 'inverted-line';
 }
 
-function buildFlankGuidonShift(
-  _prevFormation: FormationType,
+function oppositeFormation(formation: FormationType): FormationType {
+  if (formation === 'line') return 'inverted-line';
+  if (formation === 'inverted-line') return 'line';
+  if (formation === 'column') return 'inverted-column';
+  return 'column';
+}
+
+/** Track the formation at the start of the march for deferred guidon shifts. */
+function buildMarchGuidonShift(
+  current: PendingGuidonShift | null | undefined,
+  prevFormation: FormationType,
   nextFormation: FormationType,
   files: number,
-  guideSide: SimulatorState['guideSide'],
-  direction: 'left' | 'right'
 ): PendingGuidonShift | null {
   if (files <= 1) return null;
-  const lineBase = guideSide === 'left' ? 0 : Math.max(0, files - 1);
-  const columnBase = guideSide === 'left' ? Math.max(0, files - 1) : 0;
-  const targetFile = nextFormation === 'line' ? lineBase : columnBase;
-  const isStraight = nextFormation === 'line' || nextFormation === 'inverted-line';
-  const mode: PendingGuidonShift['mode'] = isStraight
-    ? 'straight'
-    : direction === 'right'
-      ? 'pivot-right'
-      : 'pivot-left';
-  return { mode, targetFile };
+  const fromFormation = current?.fromFormation ?? prevFormation;
+  if (fromFormation === nextFormation) return null;
+  return { fromFormation };
 }
 
 export function reduce(state: SimulatorState, command: Command): ReduceResult {
@@ -135,14 +135,13 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
       }
       const prevFormation = s.formationType;
       s.headingDeg = normalizeHeading(s.headingDeg + 90);
-      const nextFormation = nextFormationForRight(s.formationType);
+      const nextFormation = nextFormationForRight(prevFormation);
       s.formationType = nextFormation;
-      s.pendingGuidonShift = buildFlankGuidonShift(
+      s.pendingGuidonShift = buildMarchGuidonShift(
+        s.pendingGuidonShift,
         prevFormation,
         nextFormation,
-        s.composition.elementCount,
-        s.guideSide,
-        'right'
+        Math.max(1, Math.floor(s.composition.elementCount)),
       );
       return { next: s };
     }
@@ -153,14 +152,13 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
       }
       const prevFormation = s.formationType;
       s.headingDeg = normalizeHeading(s.headingDeg - 90);
-      const nextFormation = nextFormationForLeft(s.formationType);
+      const nextFormation = nextFormationForLeft(prevFormation);
       s.formationType = nextFormation;
-      s.pendingGuidonShift = buildFlankGuidonShift(
+      s.pendingGuidonShift = buildMarchGuidonShift(
+        s.pendingGuidonShift,
         prevFormation,
         nextFormation,
-        s.composition.elementCount,
-        s.guideSide,
-        'left'
+        Math.max(1, Math.floor(s.composition.elementCount)),
       );
       return { next: s };
     }
@@ -169,11 +167,16 @@ export function reduce(state: SimulatorState, command: Command): ReduceResult {
       if (s.motion === 'halted') {
         s.motion = 'marching';
       }
+      const prevFormation = s.formationType;
       s.headingDeg = normalizeHeading(s.headingDeg + 180);
-      if (s.formationType === 'line') s.formationType = 'inverted-line';
-      else if (s.formationType === 'inverted-line') s.formationType = 'line';
-      else if (s.formationType === 'column') s.formationType = 'inverted-column';
-      else if (s.formationType === 'inverted-column') s.formationType = 'column';
+      const nextFormation = oppositeFormation(prevFormation);
+      s.formationType = nextFormation;
+      s.pendingGuidonShift = buildMarchGuidonShift(
+        s.pendingGuidonShift,
+        prevFormation,
+        nextFormation,
+        Math.max(1, Math.floor(s.composition.elementCount)),
+      );
       return { next: s, effects: { animationHints: { useHalfStep: true } } };
     }
 

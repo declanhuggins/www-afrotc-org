@@ -4,11 +4,8 @@ export type FormationType = 'line' | 'column' | 'inverted-line' | 'inverted-colu
 export type Interval = 'normal' | 'close';
 export type Motion = 'halted' | 'marching';
 export type GuideSide = 'left' | 'right';
-export type GuidonShiftMode = 'pivot-right' | 'pivot-left' | 'straight' | 'auto';
-
 export interface PendingGuidonShift {
-  mode: GuidonShiftMode;
-  targetFile: number;
+  fromFormation: FormationType;
 }
 
 export interface SpacingInches {
