@@ -35,7 +35,7 @@ describe('engine reducer', () => {
     expect(r1.error).toBeFalsy();
     expect(r1.next.headingDeg).toBe(270);
     expect(r1.next.formationType).toBe('inverted-column');
-    expect(r1.next.pendingGuidonShift?.mode).toBe('pivot-left');
+    expect(r1.next.pendingGuidonShift?.fromFormation).toBe('line');
   });
 
   it('To the Rear while marching rotates 180', () => {
@@ -131,17 +131,33 @@ describe('engine reducer', () => {
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
 
-  it('Flanks update formation and set guidon shift for later halt', () => {
+  it('Flanks stack deferred guidon shifts from march-start formation', () => {
     const s0 = createInitialState({ motion: 'marching', formationType: 'line', guideSide: 'left' });
     const r1 = reduce(s0, { kind: 'RIGHT_FLANK' });
     expect(r1.next.formationType).toBe('column');
-    expect(r1.next.pendingGuidonShift).toEqual({ mode: 'pivot-right', targetFile: 2 });
+    expect(r1.next.pendingGuidonShift).toEqual({ fromFormation: 'line' });
 
     const r2 = reduce(r1.next, { kind: 'RIGHT_FLANK' });
     expect(r2.next.formationType).toBe('inverted-line');
-    expect(r2.next.pendingGuidonShift).toEqual({ mode: 'straight', targetFile: 2 });
+    expect(r2.next.pendingGuidonShift).toEqual({ fromFormation: 'line' });
 
-    const r3 = reduce(r2.next, { kind: 'HALT' });
-    expect(r3.next.pendingGuidonShift).toBeNull();
+    const r3 = reduce(r2.next, { kind: 'LEFT_FLANK' });
+    expect(r3.next.formationType).toBe('column');
+    expect(r3.next.pendingGuidonShift).toEqual({ fromFormation: 'line' });
+
+    const r4 = reduce(r3.next, { kind: 'LEFT_FLANK' });
+    expect(r4.next.formationType).toBe('line');
+    expect(r4.next.pendingGuidonShift).toBeNull();
+
+    const r5 = reduce(r4.next, { kind: 'HALT' });
+    expect(r5.next.pendingGuidonShift).toBeNull();
+  });
+
+  it('To the Rear contributes to stacked deferred guidon shift logic', () => {
+    const s0 = createInitialState({ motion: 'marching', formationType: 'line', guideSide: 'left' });
+    const r1 = reduce(s0, { kind: 'RIGHT_FLANK' });
+    const r2 = reduce(r1.next, { kind: 'TO_THE_REAR' });
+    expect(r2.next.formationType).toBe('inverted-column');
+    expect(r2.next.pendingGuidonShift).toEqual({ fromFormation: 'line' });
   });
 });

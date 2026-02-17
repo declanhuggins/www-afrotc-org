@@ -148,6 +148,18 @@ const QUICK_COMMANDS: Array<{
   { id: 'rotate-fall-in', label: 'ROTATE FALL-IN', command: { kind: 'ROTATE_FALL_IN' }, source: 'button', hotkey: 'R' },
 ];
 
+const IMPLEMENTED_COMMANDS = new Set<Command['kind']>([
+  'FORWARD_MARCH',
+  'LEFT_FACE',
+  'RIGHT_FACE',
+  'ABOUT_FACE',
+  'HALT',
+  'LEFT_FLANK',
+  'RIGHT_FLANK',
+  'FALL_IN',
+  'ROTATE_FALL_IN',
+]);
+
 const KEY_COMMANDS: Record<string, Command> = {
   w: { kind: 'FORWARD_MARCH' },
   s: { kind: 'ABOUT_FACE' },
@@ -1008,39 +1020,41 @@ export default function SimulatorClient(): React.JSX.Element {
   }, [simulation.cadets, halfArea]);
 
   return (
-    <div className="mt-4 space-y-4 text-slate-800 dark:text-slate-100">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+    <div className="mt-2 sm:mt-4 space-y-3 sm:space-y-4 text-slate-800 dark:text-slate-100">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+        <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">
           Marching Simulator
         </h1>
         <button
           type="button"
           onClick={() => setShowSetup(true)}
-          className="inline-flex items-center rounded border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+          className="inline-flex items-center rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
         >
           Scenario Setup
         </button>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(260px,320px)_minmax(420px,760px)_minmax(260px,1fr)]">
-        <div className="rounded border border-slate-200 bg-white p-4 shadow-sm space-y-4 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none">
+      <div className="grid gap-4 xl:gap-6 xl:grid-cols-[minmax(260px,320px)_minmax(420px,760px)_minmax(260px,1fr)]">
+        <div className="order-2 xl:order-1 rounded border border-slate-200 bg-white p-3 sm:p-4 shadow-sm space-y-3 sm:space-y-4 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none">
           <div>
             <h2 className="text-base font-semibold text-slate-700 dark:text-slate-100">Command Console</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Quick-issue atomic commands via buttons or keyboard shortcuts.
             </p>
           </div>
-          <div className="grid gap-2">
-            {QUICK_COMMANDS.map(entry => (
+          <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-1 xl:gap-2">
+            {QUICK_COMMANDS.map(entry => {
+              const implemented = IMPLEMENTED_COMMANDS.has(entry.command.kind);
+              return (
               <button
                 key={entry.id}
-                className="flex items-center justify-between rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                className={`flex items-center justify-between rounded px-2 py-1.5 text-xs font-semibold text-white shadow-sm transition sm:px-3 sm:py-2 sm:text-sm ${implemented ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`}
                 onClick={() => dispatchCommand(entry.command, entry.source)}
               >
                 <span>{entry.label}</span>
-                <span className="ml-2 text-xs opacity-80">
+                <span className="ml-1 hidden text-xs opacity-80 sm:inline">
                   {entry.hotkey ? (
-                    <kbd className="rounded border border-blue-300 bg-blue-700/40 px-2 py-0.5 font-mono text-[11px] tracking-wide">
+                    <kbd className={`rounded border px-2 py-0.5 font-mono text-[11px] tracking-wide ${implemented ? 'border-blue-300 bg-blue-700/40' : 'border-red-300 bg-red-700/40'}`}>
                       {entry.hotkey}
                     </kbd>
                   ) : (
@@ -1048,7 +1062,8 @@ export default function SimulatorClient(): React.JSX.Element {
                   )}
                 </span>
               </button>
-            ))}
+              );
+            })}
           </div>
           <div className="rounded border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-100">Command Notepad</h3>
@@ -1071,19 +1086,19 @@ export default function SimulatorClient(): React.JSX.Element {
           </div>
         </div>
 
-        <div className="rounded border border-slate-200 bg-white p-4 shadow-sm space-y-4 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none">
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
-              <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Preparatory</p>
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-100">{commandStatus.preparatory}</p>
+        <div className="order-1 xl:order-2 rounded border border-slate-200 bg-white p-3 sm:p-4 shadow-sm space-y-3 sm:space-y-4 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none">
+          <div className="grid gap-2 grid-cols-3 sm:gap-3">
+            <div className="rounded border border-slate-100 bg-slate-50 p-2 sm:p-3 dark:border-slate-700 dark:bg-slate-800/70">
+              <p className="text-[10px] sm:text-xs uppercase text-slate-500 dark:text-slate-400">Preparatory</p>
+              <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-100">{commandStatus.preparatory}</p>
             </div>
-            <div className="rounded border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
-              <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Execution</p>
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-100">{commandStatus.execution}</p>
+            <div className="rounded border border-slate-100 bg-slate-50 p-2 sm:p-3 dark:border-slate-700 dark:bg-slate-800/70">
+              <p className="text-[10px] sm:text-xs uppercase text-slate-500 dark:text-slate-400">Execution</p>
+              <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-100">{commandStatus.execution}</p>
             </div>
-            <div className="rounded border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/70">
-              <p className="text-xs uppercase text-slate-500 dark:text-slate-400">Current Command</p>
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-100">{commandStatus.label}</p>
+            <div className="rounded border border-slate-100 bg-slate-50 p-2 sm:p-3 dark:border-slate-700 dark:bg-slate-800/70">
+              <p className="text-[10px] sm:text-xs uppercase text-slate-500 dark:text-slate-400">Command</p>
+              <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-100">{commandStatus.label}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 text-xs text-slate-600 dark:text-slate-300">
@@ -1098,17 +1113,17 @@ export default function SimulatorClient(): React.JSX.Element {
               Heading: <span className="font-mono">{state.headingDeg}°</span>
             </span>
           </div>
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <form onSubmit={handleSubmit} className="flex w-full gap-2 md:max-w-sm">
+          <div className="flex flex-col gap-3 sm:gap-4 md:flex-row md:items-center md:justify-between">
+            <form onSubmit={handleSubmit} className="flex w-full gap-1.5 sm:gap-2 md:max-w-sm">
               <input
                 value={commandInput}
                 onChange={(event: ChangeEvent<HTMLInputElement>) => setCommandInput(event.target.value)}
                 placeholder="e.g., Forward, MARCH"
-                className="flex-1 rounded border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
+                className="flex-1 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm text-slate-800 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
               />
               <button
                 type="submit"
-                className="rounded bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+                className="rounded bg-slate-900 px-2.5 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
               >
                 Execute
               </button>
@@ -1126,11 +1141,11 @@ export default function SimulatorClient(): React.JSX.Element {
             <canvas
               ref={canvasRef}
               className="rounded border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-950"
-              style={{ width: `${visualSize}px`, height: `${visualSize}px` }}
+              style={{ width: `${visualSize}px`, height: `${visualSize}px`, maxWidth: '100%', maxHeight: '100vw' }}
               onMouseMove={handleCanvasMove}
               onClick={handleCanvasClick}
             />
-            <div className="pointer-events-none absolute inset-0 flex items-start justify-start p-3">
+            <div className="pointer-events-none absolute inset-0 flex items-start justify-start p-2 sm:p-3">
               <div className="flex flex-col gap-2">
                 {showBeat ? (
                   <div className="flex flex-col gap-2 rounded bg-white/80 px-3 py-2 text-xs font-semibold text-slate-700 shadow dark:bg-slate-900/80 dark:text-slate-100">
@@ -1175,7 +1190,7 @@ export default function SimulatorClient(): React.JSX.Element {
                   </div>
                 ) : null}
                 {(currentCallout || upcomingCallouts.length > 0) && (
-                  <div className="inline-flex min-w-[220px] flex-col gap-1 rounded bg-white/85 px-3 py-2 text-xs font-semibold text-slate-700 shadow dark:bg-slate-900/85 dark:text-slate-100">
+                  <div className="inline-flex min-w-55 flex-col gap-1 rounded bg-white/85 px-3 py-2 text-xs font-semibold text-slate-700 shadow dark:bg-slate-900/85 dark:text-slate-100">
                     <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
                       Command cadence
                     </div>
@@ -1209,7 +1224,7 @@ export default function SimulatorClient(): React.JSX.Element {
           </div>
         </div>
 
-        <div className="rounded border border-slate-200 bg-white p-4 shadow-sm space-y-4 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none">
+        <div className="order-3 rounded border border-slate-200 bg-white p-3 sm:p-4 shadow-sm space-y-3 sm:space-y-4 dark:border-slate-700 dark:bg-slate-900 dark:shadow-none">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-semibold text-slate-700 dark:text-slate-100">Cadet Telemetry</h2>
@@ -1224,7 +1239,7 @@ export default function SimulatorClient(): React.JSX.Element {
               Plan Snap Alignment
             </button>
           </div>
-          <div className="max-h-[520px] overflow-auto rounded border border-slate-200 dark:border-slate-700">
+          <div className="max-h-130 overflow-auto rounded border border-slate-200 dark:border-slate-700">
             <table className="min-w-full divide-y divide-slate-200 text-xs dark:divide-slate-800">
               <thead className="sticky top-0 bg-slate-50 text-slate-600 dark:bg-slate-800/80 dark:text-slate-300">
                 <tr>

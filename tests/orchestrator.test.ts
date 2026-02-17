@@ -1,8 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { createInitialState, reduce, Command } from '../lib/marching';
+import { createInitialState, reduce, Command, computeCadetPositions } from '../lib/marching';
 import { orchestrator } from '../lib/marching';
 
 describe('orchestrator', () => {
+  function withGuidonAtFile(
+    sim: ReturnType<typeof orchestrator.createSimulation>,
+    state: ReturnType<typeof createInitialState>,
+    file: number
+  ) {
+    const target = computeCadetPositions(state).find(p => p.rank === 0 && p.file === file);
+    if (!target) throw new Error('guidon target position missing');
+    return {
+      ...sim,
+      cadets: sim.cadets.map(c =>
+        c.role === 'guidon-bearer'
+          ? { ...c, file, x: target.x, y: target.y }
+          : c
+      ),
+    };
+  }
+
   it('creates cadets and steps them forward when marching', () => {
     const s0 = createInitialState({ motion: 'halted', headingDeg: 0 });
     const sim0 = orchestrator.createSimulation(s0, { cadetCount: 2 });
@@ -94,68 +111,280 @@ describe('orchestrator', () => {
     expect(guidon.actionQueue.length).toBeGreaterThan(other.actionQueue.length);
   });
 
-  it('keeps guidon facing-only actions limited to the commanded face for straight guidon shifts', () => {
+  it('applies DAFPAM guidon choreography for halted facing transitions', () => {
     const cases: Array<{
       name: string;
       start: ReturnType<typeof createInitialState>;
+      startFile: number;
       command: Command;
-      expectedRotates: number;
-      expectSteps?: boolean;
+      expectedShift: 'pivot-right' | 'pivot-left' | 'straight' | null;
+      targetFile: number;
     }> = [
       {
-        name: 'inverted column to line (Right Face)',
-        start: createInitialState({ formationType: 'inverted-column', headingDeg: 270, motion: 'halted' }),
-        command: { kind: 'RIGHT_FACE' },
-        expectedRotates: 1,
-      },
-      {
-        name: 'column to line (Left Face)',
-        start: createInitialState({ formationType: 'column', headingDeg: 90, motion: 'halted' }),
-        command: { kind: 'LEFT_FACE' },
-        expectedRotates: 1,
-      },
-      {
-        name: 'line to inverted line (About Face)',
+        name: 'line -> column (Right Face)',
         start: createInitialState({ formationType: 'line', headingDeg: 0, motion: 'halted' }),
-        command: { kind: 'ABOUT_FACE' },
-        expectedRotates: 2,
-        expectSteps: true,
+        startFile: 0,
+        command: { kind: 'RIGHT_FACE' },
+        expectedShift: 'pivot-right',
+        targetFile: 2,
       },
       {
-        name: 'line heading 90 to inverted line (About Face, rotated start)',
-        start: createInitialState({ formationType: 'line', headingDeg: 90, motion: 'halted' }),
+        name: 'line -> inverted-line (About Face)',
+        start: createInitialState({ formationType: 'line', headingDeg: 0, motion: 'halted' }),
+        startFile: 0,
         command: { kind: 'ABOUT_FACE' },
-        expectedRotates: 2,
-        expectSteps: true,
+        expectedShift: 'straight',
+        targetFile: 2,
       },
       {
-        name: 'inverted line to line (About Face)',
+        name: 'line -> inverted-column (Left Face)',
+        start: createInitialState({ formationType: 'line', headingDeg: 0, motion: 'halted' }),
+        startFile: 0,
+        command: { kind: 'LEFT_FACE' },
+        expectedShift: 'pivot-left',
+        targetFile: 2,
+      },
+      {
+        name: 'column -> inverted-line (Right Face)',
+        start: createInitialState({ formationType: 'column', headingDeg: 90, motion: 'halted' }),
+        startFile: 2,
+        command: { kind: 'RIGHT_FACE' },
+        expectedShift: null,
+        targetFile: 2,
+      },
+      {
+        name: 'column -> inverted-column (About Face)',
+        start: createInitialState({ formationType: 'column', headingDeg: 90, motion: 'halted' }),
+        startFile: 2,
+        command: { kind: 'ABOUT_FACE' },
+        expectedShift: null,
+        targetFile: 2,
+      },
+      {
+        name: 'column -> line (Left Face)',
+        start: createInitialState({ formationType: 'column', headingDeg: 90, motion: 'halted' }),
+        startFile: 2,
+        command: { kind: 'LEFT_FACE' },
+        expectedShift: 'straight',
+        targetFile: 0,
+      },
+      {
+        name: 'inverted-line -> inverted-column (Right Face)',
         start: createInitialState({ formationType: 'inverted-line', headingDeg: 180, motion: 'halted' }),
+        startFile: 2,
+        command: { kind: 'RIGHT_FACE' },
+        expectedShift: null,
+        targetFile: 2,
+      },
+      {
+        name: 'inverted-line -> line (About Face)',
+        start: createInitialState({ formationType: 'inverted-line', headingDeg: 180, motion: 'halted' }),
+        startFile: 2,
         command: { kind: 'ABOUT_FACE' },
-        expectedRotates: 2,
-        expectSteps: true,
+        expectedShift: 'straight',
+        targetFile: 0,
+      },
+      {
+        name: 'inverted-line -> column (Left Face)',
+        start: createInitialState({ formationType: 'inverted-line', headingDeg: 180, motion: 'halted' }),
+        startFile: 2,
+        command: { kind: 'LEFT_FACE' },
+        expectedShift: null,
+        targetFile: 2,
+      },
+      {
+        name: 'inverted-column -> line (Right Face)',
+        start: createInitialState({ formationType: 'inverted-column', headingDeg: 270, motion: 'halted' }),
+        startFile: 2,
+        command: { kind: 'RIGHT_FACE' },
+        expectedShift: 'straight',
+        targetFile: 0,
+      },
+      {
+        name: 'inverted-column -> column (About Face)',
+        start: createInitialState({ formationType: 'inverted-column', headingDeg: 270, motion: 'halted' }),
+        startFile: 2,
+        command: { kind: 'ABOUT_FACE' },
+        expectedShift: null,
+        targetFile: 2,
+      },
+      {
+        name: 'inverted-column -> inverted-line (Left Face)',
+        start: createInitialState({ formationType: 'inverted-column', headingDeg: 270, motion: 'halted' }),
+        startFile: 2,
+        command: { kind: 'LEFT_FACE' },
+        expectedShift: null,
+        targetFile: 2,
       },
     ];
 
     for (const scenario of cases) {
-      const sim = orchestrator.createSimulation(scenario.start, { cadetCount: 6 });
+      const sim = withGuidonAtFile(
+        orchestrator.createSimulation(scenario.start, { cadetCount: 6 }),
+        scenario.start,
+        scenario.startFile
+      );
       const { next } = reduce(scenario.start, scenario.command);
       const { cadets } = orchestrator.applyCommandToSimulation(sim, scenario.start, next, scenario.command);
       const guidon = cadets.find(c => c.role === 'guidon-bearer');
       if (!guidon) throw new Error('guidon not assigned');
       const queue = guidon.actionQueue;
-      const rotateCount = queue.filter(a => a.kind === 'rotate').length;
+      const rotates = queue.filter(a => a.kind === 'rotate');
       const stepCount = queue.filter(a => a.kind === 'step').length;
-      expect(rotateCount).toBe(scenario.expectedRotates);
-      if (scenario.expectSteps) {
-        expect(stepCount).toBeGreaterThan(0);
+      const commandRotates = scenario.command.kind === 'ABOUT_FACE' ? 2 : 1;
+      const pivotRotates =
+        scenario.expectedShift === 'pivot-right' || scenario.expectedShift === 'pivot-left' ? 2 : 0;
+      expect(rotates.length).toBe(commandRotates + pivotRotates);
+      if (scenario.expectedShift === 'pivot-right') {
+        expect(rotates[commandRotates]).toEqual({ kind: 'rotate', deltaDeg: 90 });
+        expect(rotates[commandRotates + 1]).toEqual({ kind: 'rotate', deltaDeg: -90 });
+      } else if (scenario.expectedShift === 'pivot-left') {
+        expect(rotates[commandRotates]).toEqual({ kind: 'rotate', deltaDeg: -90 });
+        expect(rotates[commandRotates + 1]).toEqual({ kind: 'rotate', deltaDeg: 90 });
       }
+      const expectsTravel =
+        scenario.expectedShift !== null && scenario.start.formationType === 'line';
+      if (expectsTravel) {
+        expect(stepCount).toBeGreaterThan(0);
+      } else if (scenario.expectedShift === null) {
+        expect(stepCount).toBe(0);
+      }
+      expect(guidon.file).toBe(scenario.targetFile);
       const firstStep = queue.findIndex(a => a.kind === 'step');
       const lastRotate = queue.map(a => a.kind).lastIndexOf('rotate');
-      if (firstStep !== -1) {
+      if (scenario.expectedShift === 'straight' && firstStep !== -1) {
         expect(lastRotate).toBeLessThan(firstStep);
       }
     }
+  });
+
+  it('guidon repositions correctly after RIGHT FACE from line (3 elements)', () => {
+    // Per DAFPAM 34-1203: after RIGHT FACE from line, the guidon bearer
+    // turns right (with everyone), turns right again, marches to the last
+    // element, then left faces back to the formation heading.
+    const state = createInitialState({
+      formationType: 'line',
+      headingDeg: 0,
+      motion: 'halted',
+      composition: { elementCount: 3, rankCount: 4 },
+    });
+    const sim = orchestrator.createSimulation(state, { cadetCount: 10 });
+    const guidonBefore = sim.cadets.find(c => c.role === 'guidon-bearer');
+    if (!guidonBefore) throw new Error('guidon not assigned');
+    expect(guidonBefore.file).toBe(0); // guide-left → file 0
+
+    const { next } = reduce(state, { kind: 'RIGHT_FACE' });
+    const result = orchestrator.applyCommandToSimulation(sim, state, next, { kind: 'RIGHT_FACE' });
+    const guidon = result.cadets.find(c => c.role === 'guidon-bearer');
+    if (!guidon) throw new Error('guidon not assigned');
+
+    const queue = guidon.actionQueue;
+    // Action sequence: rotate +90 (face), rotate +90 (pivot), steps, rotate -90 (back)
+    const rotates = queue.filter(a => a.kind === 'rotate');
+    const steps = queue.filter(a => a.kind === 'step');
+
+    // 3 rotations: face (+90), pivot (+90), return (-90)
+    expect(rotates.length).toBe(3);
+    expect(rotates[0]).toEqual({ kind: 'rotate', deltaDeg: 90 });  // face right
+    expect(rotates[1]).toEqual({ kind: 'rotate', deltaDeg: 90 });  // pivot right
+    expect(rotates[2]).toEqual({ kind: 'rotate', deltaDeg: -90 }); // left face back
+
+    // March distance = 2 intervals (70 inches for 3 elements at normal 35" spacing)
+    const totalStepDist = steps.reduce((sum, s) => sum + (s.kind === 'step' ? s.distanceIn : 0), 0);
+    expect(totalStepDist).toBeCloseTo(70, 1);
+
+    // Guidon file updated to target
+    expect(guidon.file).toBe(2);
+  });
+
+  it('guidon target after RIGHT FACE is anchored to current formation position', () => {
+    const state = createInitialState({
+      formationType: 'line',
+      headingDeg: 0,
+      motion: 'halted',
+      composition: { elementCount: 3, rankCount: 4 },
+    });
+    const sim0 = orchestrator.createSimulation(state, { cadetCount: 10 });
+    const sim = {
+      ...sim0,
+      cadets: sim0.cadets.map(c => ({ ...c, x: c.x + 400, y: c.y + 300 })),
+    };
+
+    const { next } = reduce(state, { kind: 'RIGHT_FACE' });
+    const queued = orchestrator.applyCommandToSimulation(sim, state, next, { kind: 'RIGHT_FACE' });
+
+    let resolved = queued;
+    for (let i = 0; i < 20; i++) {
+      resolved = orchestrator.advanceSimulation(resolved, next, 1000);
+    }
+
+    const guidon = resolved.cadets.find(c => c.role === 'guidon-bearer');
+    if (!guidon) throw new Error('guidon not assigned');
+    expect(guidon.file).toBe(2);
+    expect(guidon.x).toBeCloseTo(400, 3);
+    expect(guidon.y).toBeCloseTo(265, 3);
+  });
+
+  it('guidon repositions correctly on LEFT FACE from line', () => {
+    // Per DAFPAM 34-1203: after LEFT FACE from line, the guidon bearer
+    // turns left (with everyone), turns left again, marches to the last
+    // element, then right faces back to the formation heading.
+    const state = createInitialState({
+      formationType: 'line',
+      headingDeg: 0,
+      motion: 'halted',
+      composition: { elementCount: 3, rankCount: 4 },
+    });
+    const sim = orchestrator.createSimulation(state, { cadetCount: 10 });
+    const { next } = reduce(state, { kind: 'LEFT_FACE' });
+    const result = orchestrator.applyCommandToSimulation(sim, state, next, { kind: 'LEFT_FACE' });
+    const guidon = result.cadets.find(c => c.role === 'guidon-bearer');
+    if (!guidon) throw new Error('guidon not assigned');
+
+    const queue = guidon.actionQueue;
+    const rotates = queue.filter(a => a.kind === 'rotate');
+    const steps = queue.filter(a => a.kind === 'step');
+
+    // 3 rotations: face (-90), pivot (-90), return (+90)
+    expect(rotates.length).toBe(3);
+    expect(rotates[0]).toEqual({ kind: 'rotate', deltaDeg: -90 }); // face left
+    expect(rotates[1]).toEqual({ kind: 'rotate', deltaDeg: -90 }); // pivot left
+    expect(rotates[2]).toEqual({ kind: 'rotate', deltaDeg: 90 });  // right face back
+
+    // March distance = 2 intervals (70 inches for 3 elements at normal 35" spacing)
+    const totalStepDist = steps.reduce((sum, s) => sum + (s.kind === 'step' ? s.distanceIn : 0), 0);
+    expect(totalStepDist).toBeCloseTo(70, 1);
+    expect(guidon.file).toBe(2);
+  });
+
+  it('guidon repositions correctly on ABOUT FACE from line', () => {
+    // After ABOUT FACE from line, the guidon marches straight to the
+    // opposite end of the formation.
+    const state = createInitialState({
+      formationType: 'line',
+      headingDeg: 0,
+      motion: 'halted',
+      composition: { elementCount: 3, rankCount: 4 },
+    });
+    const sim = orchestrator.createSimulation(state, { cadetCount: 10 });
+    const { next } = reduce(state, { kind: 'ABOUT_FACE' });
+    const result = orchestrator.applyCommandToSimulation(sim, state, next, { kind: 'ABOUT_FACE' });
+    const guidon = result.cadets.find(c => c.role === 'guidon-bearer');
+    if (!guidon) throw new Error('guidon not assigned');
+
+    const queue = guidon.actionQueue;
+    const rotates = queue.filter(a => a.kind === 'rotate');
+    const steps = queue.filter(a => a.kind === 'step');
+
+    // 2 rotations for the 180° about face, then straight march (no pivot)
+    expect(rotates.length).toBe(2);
+    expect(steps.length).toBeGreaterThan(0);
+
+    // March distance = 2 intervals (70 inches)
+    const totalStepDist = steps.reduce((sum, s) => sum + (s.kind === 'step' ? s.distanceIn : 0), 0);
+    expect(totalStepDist).toBeCloseTo(70, 1);
+
+    expect(guidon.file).toBe(2);
   });
 
   it('orders fall-in cadets with guide only in front rank, then fill ranks front-to-back by element', () => {
