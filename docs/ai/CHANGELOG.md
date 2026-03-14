@@ -30,3 +30,10 @@ Log milestones and PRs with brief notes linking to requirements and tests.
 - Improved mobile UI: responsive 2-column command grid, canvas scaling, panel reorder (canvas first on mobile), tighter spacing.
 - Added visual indicator (red) for unimplemented command buttons.
 - Bumped Cloudflare compatibility date and Node version; updated dependencies.
+
+## 2026-03-13
+
+- Implemented full column-right/left orchestration staging by file and rank, including pivot-file immediate 90-degree turns and non-pivot split 45-degree pivots with recovery steps — REQ-009 partial.
+- Added guidon recovery shift behavior after full column turns and expanded orchestrator tests for file/rank staging and guidon post-turn recovery — REQ-009, REQ-020 partial.
+- Migrated lint stack to ESLint v10 flat-config-compatible setup; removed `eslint-config-next`, `eslint-plugin-react`, and `eslint-plugin-react-hooks` in favor of `@next/eslint-plugin-next` + TypeScript ESLint plugins.
+- Upgraded project dependencies (`@opennextjs/cloudflare`, `wrangler`, `vitest`, `undici`, `@types/node`, npm tooling) and regenerated lockfile/runtime type output.
