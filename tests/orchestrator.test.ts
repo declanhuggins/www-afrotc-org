@@ -97,6 +97,77 @@ describe('orchestrator', () => {
     expect(queue[1].kind).toBe('step-rotate');
   });
 
+  it('stages full column-left pivots by file and rank with catch-up half-steps', () => {
+    const marching = createInitialState({
+      motion: 'marching',
+      headingDeg: 0,
+      composition: { elementCount: 3, rankCount: 4 },
+      stepLenIn: 24,
+    });
+    const sim = orchestrator.createSimulation(marching, { cadetCount: 12 });
+    const { next } = reduce(marching, { kind: 'COLUMN_LEFT' });
+    const result = orchestrator.applyCommandToSimulation(sim, marching, next, { kind: 'COLUMN_LEFT' });
+
+    const baseLeader = result.cadets.find(c => c.rank === 1 && c.file === 0 && c.role !== 'guidon-bearer');
+    const baseFollower = result.cadets.find(c => c.rank === 2 && c.file === 0);
+    const secondLeader = result.cadets.find(c => c.rank === 1 && c.file === 1);
+    const thirdLeader = result.cadets.find(c => c.rank === 1 && c.file === 2);
+    if (!baseLeader || !baseFollower || !secondLeader || !thirdLeader) {
+      throw new Error('test cadets missing');
+    }
+
+    const baseLeaderFirstPivot = baseLeader.actionQueue.findIndex(a => a.kind === 'step-rotate');
+    const baseFollowerFirstPivot = baseFollower.actionQueue.findIndex(a => a.kind === 'step-rotate');
+    expect(baseLeaderFirstPivot).toBeGreaterThanOrEqual(0);
+    expect(baseFollowerFirstPivot).toBeGreaterThan(baseLeaderFirstPivot);
+
+    const secondTurns = secondLeader.actionQueue.filter(a => a.kind === 'step-rotate');
+    const thirdTurns = thirdLeader.actionQueue.filter(a => a.kind === 'step-rotate');
+    expect(secondTurns).toHaveLength(2);
+    expect(thirdTurns).toHaveLength(2);
+    expect(secondTurns[0]).toEqual({ kind: 'step-rotate', deltaDeg: -45, distanceIn: 24 });
+    expect(secondTurns[1]).toEqual({ kind: 'step-rotate', deltaDeg: -45, distanceIn: 24 });
+    expect(thirdTurns[0]).toEqual({ kind: 'step-rotate', deltaDeg: -45, distanceIn: 24 });
+    expect(thirdTurns[1]).toEqual({ kind: 'step-rotate', deltaDeg: -45, distanceIn: 24 });
+
+    const secondBetweenTurns = secondLeader.actionQueue.slice(
+      secondLeader.actionQueue.findIndex(a => a.kind === 'step-rotate') + 1,
+      secondLeader.actionQueue.map(a => a.kind).lastIndexOf('step-rotate')
+    ).filter(a => a.kind === 'step' && a.distanceIn === 24);
+    const thirdBetweenTurns = thirdLeader.actionQueue.slice(
+      thirdLeader.actionQueue.findIndex(a => a.kind === 'step-rotate') + 1,
+      thirdLeader.actionQueue.map(a => a.kind).lastIndexOf('step-rotate')
+    ).filter(a => a.kind === 'step' && a.distanceIn === 24);
+    expect(secondBetweenTurns).toHaveLength(1);
+    expect(thirdBetweenTurns).toHaveLength(3);
+
+    const baseHalfSteps = baseLeader.actionQueue.filter(a => a.kind === 'step' && a.distanceIn === 12);
+    const thirdHalfSteps = thirdLeader.actionQueue.filter(a => a.kind === 'step' && a.distanceIn === 12);
+    expect(baseHalfSteps.length).toBeGreaterThan(thirdHalfSteps.length);
+  });
+
+  it('adds guidon recovery shift after full column-right turn', () => {
+    const marching = createInitialState({
+      motion: 'marching',
+      headingDeg: 0,
+      composition: { elementCount: 3, rankCount: 4 },
+      stepLenIn: 24,
+      guideSide: 'left',
+    });
+    const sim = orchestrator.createSimulation(marching, { cadetCount: 12 });
+    const { next } = reduce(marching, { kind: 'COLUMN_RIGHT' });
+    const result = orchestrator.applyCommandToSimulation(sim, marching, next, { kind: 'COLUMN_RIGHT' });
+
+    const guidon = result.cadets.find(c => c.role === 'guidon-bearer');
+    if (!guidon) throw new Error('guidon missing');
+    const turnSteps = guidon.actionQueue.filter(a => a.kind === 'step-rotate');
+    const lastTwo = turnSteps.slice(-2);
+    expect(lastTwo).toEqual([
+      { kind: 'step-rotate', deltaDeg: 45, distanceIn: 24 },
+      { kind: 'step-rotate', deltaDeg: -45, distanceIn: 24 },
+    ]);
+  });
+
   it('defers guidon repositioning until halt after a flank', () => {
     const marching = createInitialState({ motion: 'marching', headingDeg: 0, composition: { elementCount: 3, rankCount: 2 } });
     const sim0 = orchestrator.createSimulation(marching, { cadetCount: 6 });

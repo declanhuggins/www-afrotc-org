@@ -1,14 +1,14 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "afrotc",
-	"compatibility_date": "2026-02-16",
+	"compatibility_date": "2026-03-13",
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
 	"workers_dev": true,
-	"main": ".vercel/output/static/_worker.js",
+	"main": ".open-next/worker.js",
 	"assets": {
-		"directory": ".vercel/output/static",
+		"directory": ".open-next/assets",
 		"not_found_handling": "404-page",
 		"binding": "ASSETS"
 	},
@@ -25,13 +25,13 @@
 		}
 	],
 	"vars": {
-		"NODE_VERSION": "25.6.1"
+		"NODE_VERSION": "25.8.1"
 	},
 	"env": {
 		"prod": {
 			"name": "afrotc",
 			"vars": {
-				"NODE_VERSION": "25.6.1"
+				"NODE_VERSION": "25.8.1"
 			},
 			"routes": [
 				{
@@ -43,7 +43,7 @@
 		"dev": {
 			"name": "dev-afrotc",
 			"vars": {
-				"NODE_VERSION": "25.6.1"
+				"NODE_VERSION": "25.8.1"
 			},
 			"routes": [
 				{

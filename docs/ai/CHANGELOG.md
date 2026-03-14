@@ -18,6 +18,10 @@ Log milestones and PRs with brief notes linking to requirements and tests.
 - Updated cadence UI indicators for planted/next foot and beat progress.
 - Added/updated tests covering flank timing, guidon shift deferral, and halt sequencing.
 
+## 2026-02-11
+
+- Bumped core dependencies and tooling (Next.js, OpenNext Cloudflare, ESLint, Wrangler, Undici, and @types/node).
+
 ## 2026-02-16
 
 - Rewrote guidon shift logic to use a rules-table approach (`lib/marching/guidon/rules.ts`) instead of dynamic mode computation — REQ-007, REQ-020.
@@ -27,6 +31,9 @@ Log milestones and PRs with brief notes linking to requirements and tests.
 - Added visual indicator (red) for unimplemented command buttons.
 - Bumped Cloudflare compatibility date and Node version; updated dependencies.
 
-## 2026-02-11
+## 2026-03-13
 
-- Bumped core dependencies and tooling (Next.js, OpenNext Cloudflare, ESLint, Wrangler, Undici, and @types/node).
+- Implemented full column-right/left orchestration staging by file and rank, including pivot-file immediate 90-degree turns and non-pivot split 45-degree pivots with recovery steps — REQ-009 partial.
+- Added guidon recovery shift behavior after full column turns and expanded orchestrator tests for file/rank staging and guidon post-turn recovery — REQ-009, REQ-020 partial.
+- Migrated lint stack to ESLint v10 flat-config-compatible setup; removed `eslint-config-next`, `eslint-plugin-react`, and `eslint-plugin-react-hooks` in favor of `@next/eslint-plugin-next` + TypeScript ESLint plugins.
+- Upgraded project dependencies (`@opennextjs/cloudflare`, `wrangler`, `vitest`, `undici`, `@types/node`, npm tooling) and regenerated lockfile/runtime type output.
