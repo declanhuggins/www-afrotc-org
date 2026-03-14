@@ -21,31 +21,28 @@
 		"upgrade": "npx npm-check-updates -u && npm install"
 	},
 	"dependencies": {
-		"@opennextjs/cloudflare": "^1.16.4",
+		"@opennextjs/cloudflare": "^1.17.1",
 		"next": "16.1.6",
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4"
 	},
 	"devDependencies": {
 		"@eslint/eslintrc": "^3",
-		"@eslint/js": "^9.36.0",
+		"@eslint/js": "^10.0.1",
 		"@next/eslint-plugin-next": "^16.1.6",
 		"@tailwindcss/postcss": "^4",
-		"@types/node": "^25.2.3",
+		"@types/node": "^25.5.0",
 		"@types/react": "^19",
 		"@types/react-dom": "^19",
 		"@typescript-eslint/eslint-plugin": "^8",
 		"@typescript-eslint/parser": "^8",
-		"eslint": "^9.36.0",
-		"eslint-config-next": "^16.1.6",
-		"eslint-plugin-react": "^7",
-		"eslint-plugin-react-hooks": "^7",
+		"eslint": "^10.0.3",
 		"globals": "^17",
-		"npm-check-updates": "^19.3.2",
+		"npm-check-updates": "^19.6.3",
 		"tailwindcss": "^4",
 		"typescript": "^5",
-		"undici": "^7.21.0",
-		"vitest": "^4.0.18",
-		"wrangler": "^4.64.0"
+		"undici": "^7.24.1",
+		"vitest": "^4.1.0",
+		"wrangler": "^4.73.0"
 	}
 }

@@ -512,6 +512,92 @@ function createFlankTurnSequence(
   return [...createRotateSequence(deltaDeg), ...createStepSequence(stepLen, stepLen)];
 }
 
+function createFixedStepActions(stepCount: number, distanceIn: number): CadetAction[] {
+  const count = Math.max(0, Math.floor(stepCount));
+  if (count === 0 || Math.abs(distanceIn) < EPSILON) return [];
+  return Array.from({ length: count }, () => ({ kind: 'step', distanceIn }));
+}
+
+function rankDelayBeforeColumnTurn(cadet: OrchestratorCadet): number {
+  // The guidon follows the element leader timing (rank 1), not the raw rank-0 index.
+  if (cadet.role === 'guidon-bearer') return 0;
+  return Math.max(0, cadet.rank - 1);
+}
+
+function createFullColumnTurnActions(
+  fileOffsetFromPivot: number,
+  deltaDeg: number,
+  stepLen: number
+): CadetAction[] {
+  const offset = Math.max(0, Math.floor(fileOffsetFromPivot));
+  if (offset === 0) {
+    // Pivot file: immediate 90-degree pivot on the first step.
+    return [{ kind: 'step-rotate', deltaDeg, distanceIn: stepLen }];
+  }
+
+  // Non-pivot files: immediate 45, then extra steps, then final 45.
+  const firstHalf = deltaDeg / 2;
+  const middleSteps = 2 * offset - 1;
+  return [
+    { kind: 'step-rotate', deltaDeg: firstHalf, distanceIn: stepLen },
+    ...createFixedStepActions(middleSteps, stepLen),
+    { kind: 'step-rotate', deltaDeg: firstHalf, distanceIn: stepLen },
+  ];
+}
+
+function addGuidonColumnRecovery(
+  actions: CadetAction[],
+  direction: 'left' | 'right',
+  stepLen: number
+): CadetAction[] {
+  const shift = direction === 'right' ? 45 : -45;
+  return [
+    ...actions,
+    { kind: 'step-rotate', deltaDeg: shift, distanceIn: stepLen },
+    { kind: 'step-rotate', deltaDeg: -shift, distanceIn: stepLen },
+  ];
+}
+
+function planFullColumnActions(
+  cadets: OrchestratorCadet[],
+  direction: 'left' | 'right',
+  stepLen: number,
+  files: number,
+  addRightFootLeadStep: boolean
+): OrchestratorCadet[] {
+  const baseFile = direction === 'right' ? files - 1 : 0;
+  const deltaDeg = direction === 'right' ? 90 : -90;
+  const leadIn = addRightFootLeadStep ? createFixedStepActions(1, stepLen) : [];
+
+  const staged = cadets.map(cadet => {
+    const fileOffset = Math.abs(cadet.file - baseFile);
+    const rankDelay = rankDelayBeforeColumnTurn(cadet);
+    const turn = createFullColumnTurnActions(fileOffset, deltaDeg, stepLen);
+    const actions: CadetAction[] = [
+      ...leadIn,
+      ...createFixedStepActions(rankDelay, stepLen),
+      ...turn,
+    ];
+    return { cadet, actions, beats: actions.length };
+  });
+
+  const maxBeats = staged.reduce((m, entry) => Math.max(m, entry.beats), 0);
+
+  return staged.map(entry => {
+    const waitForDressBeats = Math.max(0, maxBeats - entry.beats);
+    let actions: CadetAction[] = [
+      ...entry.actions,
+      ...createFixedStepActions(waitForDressBeats, stepLen / 2),
+    ];
+
+    if (entry.cadet.role === 'guidon-bearer') {
+      actions = addGuidonColumnRecovery(actions, direction, stepLen);
+    }
+
+    return appendActions(entry.cadet, actions);
+  });
+}
+
 function stepIntervalMs(state: SimulatorState): number {
   const cadence = Math.max(10, state.cadenceSpm || 0);
   return (60_000 / cadence);
@@ -734,7 +820,39 @@ export function applyCommandToSimulation(
     case 'COLUMN_RIGHT':
     case 'COLUMN_LEFT':
     case 'COLUMN_HALF_RIGHT':
-    case 'COLUMN_HALF_LEFT':
+    case 'COLUMN_HALF_LEFT': {
+      const delta = normalizeDelta(nextState.headingDeg - prevState.headingDeg);
+      const files = Math.max(1, Math.floor(prevState.composition.elementCount));
+      const nextFoot = simulation.stepCount % 2 === 0 ? 'left' : 'right';
+      const addRightFootLeadStep = prevState.motion === 'marching' && nextFoot !== 'right';
+
+      if (command.kind === 'COLUMN_RIGHT' || command.kind === 'COLUMN_LEFT') {
+        cadets = planFullColumnActions(
+          cadets,
+          command.kind === 'COLUMN_RIGHT' ? 'right' : 'left',
+          stepLen,
+          files,
+          addRightFootLeadStep
+        );
+        return { ...simulation, cadets };
+      }
+
+      // Keep half-column behavior lightweight for now.
+      const isRight = command.kind === 'COLUMN_HALF_RIGHT';
+      const baseFile = isRight ? files - 1 : 0;
+      const halfLeadIn = addRightFootLeadStep ? createFixedStepActions(1, stepLen) : [];
+      cadets = cadets.map(cadet => {
+        const fileOffset = Math.abs(cadet.file - baseFile);
+        const extraForward = fileOffset * stepLen;
+        const actions: CadetAction[] = [
+          ...halfLeadIn,
+          ...createStepSequence(extraForward, stepLen),
+          { kind: 'step-rotate', deltaDeg: delta, distanceIn: stepLen },
+        ];
+        return appendActions(cadet, actions);
+      });
+      return { ...simulation, cadets };
+    }
     case 'COUNTER_MARCH': {
       const delta = normalizeDelta(nextState.headingDeg - prevState.headingDeg);
       const actions = createMovingTurnSequence(delta, stepLen, { halfStep: opts?.halfStep });
